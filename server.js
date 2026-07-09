@@ -278,6 +278,27 @@ app.post('/api/goods', async (req, res) => {
   }
 });
 
+// Helper: Get target account machine UUID dynamically
+async function getTargetMachineUuid(token) {
+  try {
+    const url = `${BASE_URL}/machineinfo/querymachineinfo?pageNum=1&pageSize=10`;
+    const qauth = getQAuthorization();
+    const headers = {
+      'authorization': token,
+      'qauthorization': qauth,
+      'Accept': 'application/json, text/plain, */*',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    };
+    const response = await axios.get(url, { headers });
+    if (response.data && response.data.result === 'true' && response.data.data && response.data.data.length > 0) {
+      return response.data.data[0].uuid || '155';
+    }
+  } catch (err) {
+    console.error('Error fetching target machine info:', err.message);
+  }
+  return '155'; // Fallback
+}
+
 // Helper: Query custom categories of an account
 async function getCategories(token) {
   const url = `${BASE_URL}/commcustomcategory/querycommcustomcategory?customType=2`;
@@ -298,7 +319,7 @@ async function getCategories(token) {
 }
 
 // Helper: Create custom category
-async function createCategory(token, typeName) {
+async function createCategory(token, typeName, machineUuid = '155') {
   const url = `${BASE_URL}/commcustomcategory/addcommcustomcategory`;
   const qauth = getQAuthorization();
   const headers = {
@@ -311,7 +332,7 @@ async function createCategory(token, typeName) {
 
   const payload = {
     customType: 2,
-    machineUuid: '155',
+    machineUuid: machineUuid,
     typeName: typeName,
     typeRemark: ''
   };
@@ -323,6 +344,7 @@ async function createCategory(token, typeName) {
     throw new Error(response.data ? response.data.resultDesc : 'Failed to create category');
   }
 }
+
 
 // Helper: Check if product exists in target account by barcode or name (robust check to avoid duplicates)
 async function findProductInTarget(token, barcode, name, targetType = 'main') {
@@ -767,40 +789,54 @@ app.post('/api/sync-item', async (req, res) => {
     const categoryKey = categoryName.toLowerCase();
     let targetCateUuid = "";
 
-    // Check if it's a global system category first
-    if (SYSTEM_CATEGORIES[categoryKey]) {
-      targetCateUuid = SYSTEM_CATEGORIES[categoryKey];
-      console.log(`Using global system category match for "${categoryName}" -> UUID: ${targetCateUuid}`);
-    } else {
-      console.log(`Checking custom categories for "${categoryName}" on target...`);
-      const categories = await getCategories(targetToken);
-      console.log(`Target categories retrieved:`, JSON.stringify(categories));
-      
-      let matchedCategory = categories.find(c => 
-        c.typeName && c.typeName.trim().toLowerCase() === categoryKey
-      );
+    // Fetch the target machine UUID dynamically
+    const targetMachineUuid = await getTargetMachineUuid(targetToken);
+    console.log(`Target machine UUID resolved: ${targetMachineUuid}`);
 
-      if (matchedCategory) {
-        targetCateUuid = matchedCategory.cateUuid || matchedCategory.uuid;
-        console.log(`Found category match: "${categoryName}" -> UUID: ${targetCateUuid}`);
-      } else {
-        console.log(`Category "${categoryName}" not found in target categories. Creating it...`);
-        try {
-          await createCategory(targetToken, categoryName);
-          // Refetch categories to get the newly created uuid
-          const updatedCategories = await getCategories(targetToken);
-          matchedCategory = updatedCategories.find(c => 
-            c.typeName && c.typeName.trim().toLowerCase() === categoryKey
-          );
-          if (matchedCategory) {
-            targetCateUuid = matchedCategory.cateUuid || matchedCategory.uuid;
-            console.log(`Created category: "${categoryName}" -> UUID: ${targetCateUuid}`);
-          } else {
-            console.log(`Category created but not found in refetched list. Proceeding with empty category.`);
-          }
-        } catch (catErr) {
-          console.error(`Failed to create category "${categoryName}":`, catErr.message);
-          console.log(`Proceeding to sync product "${good.goodsName}" with empty category.`);
+    console.log(`Checking custom categories for "${categoryName}" on target...`);
+    let categories = [];
+    try {
+      const fetchedCats = await getCategories(targetToken);
+      categories = Array.isArray(fetchedCats) ? fetchedCats : [];
+    } catch (err) {
+      console.error('Failed to fetch categories:', err.message);
+    }
+    console.log(`Target custom categories list size: ${categories.length}`);
+    
+    let matchedCategory = categories.find(c => 
+      c.typeName && c.typeName.trim().toLowerCase() === categoryKey
+    );
+
+    if (matchedCategory) {
+      targetCateUuid = matchedCategory.cateUuid || matchedCategory.uuid;
+      console.log(`Found custom category match: "${categoryName}" -> UUID: ${targetCateUuid}`);
+    } else {
+      console.log(`Category "${categoryName}" not found in target custom categories. Creating it...`);
+      try {
+        await createCategory(targetToken, categoryName, targetMachineUuid);
+        // Refetch categories to get the newly created uuid
+        const updatedCategories = await getCategories(targetToken);
+        const refetchedList = Array.isArray(updatedCategories) ? updatedCategories : [];
+        matchedCategory = refetchedList.find(c => 
+          c.typeName && c.typeName.trim().toLowerCase() === categoryKey
+        );
+        if (matchedCategory) {
+          targetCateUuid = matchedCategory.cateUuid || matchedCategory.uuid;
+          console.log(`Created category: "${categoryName}" -> UUID: ${targetCateUuid}`);
+        } else {
+          console.log(`Category created but not found in refetched list.`);
+        }
+      } catch (catErr) {
+        console.error(`Failed to create category "${categoryName}":`, catErr.message);
+      }
+
+      // Last resort fallback to global SYSTEM_CATEGORIES if we still don't have targetCateUuid
+      if (!targetCateUuid) {
+        if (SYSTEM_CATEGORIES[categoryKey]) {
+          targetCateUuid = SYSTEM_CATEGORIES[categoryKey];
+          console.log(`Fallback: Using global system category match for "${categoryName}" -> UUID: ${targetCateUuid}`);
+        } else {
+          console.log(`No custom or system category fallback found. Proceeding with empty category UUID.`);
         }
       }
     }
@@ -819,7 +855,7 @@ app.post('/api/sync-item', async (req, res) => {
 
     const payload = {
       goodsTypeStr: 2,
-      machineUuid: '155',
+      machineUuid: targetMachineUuid,
       cateUuid: targetCateUuid,
       goodsName: good.goodsName,
       goodsCode: good.goodsCode || '',
@@ -1289,12 +1325,11 @@ app.get('/api/export-csv', async (req, res) => {
   }
 });
 
-// On Vercel the app is imported as a serverless handler (see api/index.js),
-// so we only start a real listener when running locally / directly.
-if (!process.env.VERCEL && require.main === module) {
+if (!process.env.VERCEL) {
   app.listen(PORT, () => {
     console.log(`Express server running on http://localhost:${PORT}`);
   });
 }
 
 module.exports = app;
+
