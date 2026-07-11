@@ -405,7 +405,7 @@ export default function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             targetToken,
-            targetUserUuid: targetUser.uuid,
+            targetUserUuid: targetUser?.uuid || 'dummy-uuid',
             good,
             mode: activeCatalogTab === 'target' ? 'price' : syncMode,
             targetType,

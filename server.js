@@ -767,8 +767,8 @@ async function findProductInTarget(token, barcode, name, targetType = 'main') {
 // 3. Sync single item endpoint
 app.post('/api/sync-item', async (req, res) => {
   const { targetToken, targetUserUuid, good, mode = 'copy', targetType = 'main' } = req.body;
-  if (!targetToken || !targetUserUuid || !good) {
-    return res.status(400).json({ error: 'targetToken, targetUserUuid, and good object are required' });
+  if (!targetToken || !good) {
+    return res.status(400).json({ error: 'targetToken and good object are required' });
   }
 
   try {
