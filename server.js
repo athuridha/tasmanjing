@@ -50,6 +50,27 @@ const ITSPC_SYSTEM_CATEGORIES = {
   'other': 5537
 };
 
+const GRABOTECH_SYSTEM_CATEGORIES = {
+  'bread': 137, // Food
+  'bakery': 137, // Food
+  'coffee': 131, // Drinks
+  'tea': 131, // Drinks
+  'milk': 131, // Drinks
+  'yogurt': 131, // Drinks
+  'snacks': 138, // Snack
+  'snack': 138,
+  'noodles': 137, // Food
+  'mineral water': 131, // Drinks
+  'drinks': 131, // Drinks
+  'beverages': 131, // Drinks
+  'soft drink': 129, // SODA
+  'soda': 129, // SODA
+  'cola': 128, // Coca Cola
+  'coke': 128,
+  'carbon': 127, // Carbonated Drinks
+  'other': 85
+};
+
 // Signature calculator for qauthorization header
 function md5(str) {
   return crypto.createHash('md5').update(str).digest('hex');
@@ -61,11 +82,103 @@ function getQAuthorization() {
   return `${t}@@@${sign}`;
 }
 
+// Grabotech Captcha endpoint
+app.get('/api/grabotech-captcha', async (req, res) => {
+  try {
+    const response = await axios.get('https://admin.grabotech.com/captcha.html', {
+      responseType: 'arraybuffer',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    });
+
+    let phpSessionId = '';
+    const cookies = response.headers['set-cookie'] || [];
+    for (const cookie of cookies) {
+      if (cookie.includes('PHPSESSID=')) {
+        phpSessionId = cookie.split('PHPSESSID=')[1].split(';')[0];
+        break;
+      }
+    }
+
+    const base64Image = Buffer.from(response.data, 'binary').toString('base64');
+    const mimeType = response.headers['content-type'] || 'image/png';
+
+    return res.json({
+      success: true,
+      captchaUrl: `data:${mimeType};base64,${base64Image}`,
+      phpSessionId: phpSessionId
+    });
+  } catch (err) {
+    console.error('Failed to fetch Grabotech captcha:', err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // 1. Login endpoint
 app.post('/api/login', async (req, res) => {
   const { userAccount, userPwd, type = 'main' } = req.body;
   if (!userAccount || !userPwd) {
     return res.status(400).json({ error: 'Username and password are required' });
+  }
+
+  if (type === 'grabotech') {
+    const { sessionCookie, vifCode } = req.body;
+    if (!vifCode) {
+      return res.status(400).json({ error: 'Verification code is required for Grabotech' });
+    }
+    if (!sessionCookie) {
+      return res.status(400).json({ error: 'Session cookie is missing. Please reload captcha.' });
+    }
+
+    const url = 'https://admin.grabotech.com/index/index/login.html';
+    const headers = {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Cookie': `PHPSESSID=${sessionCookie}`,
+      'Accept': 'application/json, text/javascript, */*; q=0.01',
+      'X-Requested-With': 'XMLHttpRequest',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    };
+
+    const querystring = require('querystring');
+    const payload = querystring.stringify({
+      userName: userAccount.trim(),
+      password: userPwd.trim(),
+      vifCode: vifCode.trim(),
+      remember: ''
+    });
+
+    try {
+      const response = await axios.post(url, payload, { headers });
+      console.log('Grabotech login response:', response.data);
+      
+      const resData = response.data || {};
+      const isSuccess = resData.status === 1 || resData.status === 1001 || resData.code === 200 || resData.success === true || (typeof resData === 'string' && resData.includes('成功'));
+
+      if (isSuccess || resData.status === 1 || resData.status === 1001) {
+        return res.json({
+          success: true,
+          token: sessionCookie,
+          user: {
+            userAccount: userAccount,
+            contactMan: userAccount,
+            email: '-',
+            type: 'grabotech'
+          }
+        });
+      } else {
+        return res.status(400).json({
+          success: false,
+          error: resData.info || resData.msg || 'Login failed. Please check credentials/captcha.'
+        });
+      }
+    } catch (err) {
+      console.error('Grabotech login error:', err.message);
+      return res.status(500).json({
+        success: false,
+        error: err.response ? JSON.stringify(err.response.data) : err.message
+      });
+    }
   }
 
   if (type === 'itspc') {
@@ -153,6 +266,51 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
+// Helper: Parse Grabotech goods HTML table response
+function parseGrabotechGoodsHtml(html) {
+  const trRegex = /<tr[^>]*id="goods_(\d+)"[^>]*>([\s\S]*?)<\/tr>/gi;
+  const tdRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+  const imgRegex = /<img[^>]*src="([^"]+)"/i;
+  const goods = [];
+  
+  let trMatch;
+  while ((trMatch = trRegex.exec(html)) !== null) {
+    const goodsId = trMatch[1];
+    const tdsHtml = trMatch[2];
+    
+    const tds = [];
+    let tdMatch;
+    while ((tdMatch = tdRegex.exec(tdsHtml)) !== null) {
+      tds.push(tdMatch[1].trim());
+    }
+    
+    if (tds.length >= 11) {
+      const name = tds[2] || tds[3] || '';
+      const imgMatch = tds[4].match(imgRegex);
+      const imageUrl = imgMatch ? imgMatch[1] : '';
+      const unit = tds[5] || '';
+      const price = parseFloat(tds[6]) || 0;
+      const cost = parseFloat(tds[7]) || 0;
+      const barcode = tds[10] || '';
+      
+      goods.push({
+        uuid: goodsId,
+        goodsName: name,
+        goodsCode: barcode,
+        goodsPrice: price,
+        costPrice: cost,
+        membersPrice: 0,
+        customName: 'General',
+        goodsUrl: imageUrl,
+        brand: '',
+        specsDesc: unit,
+        type: 'grabotech'
+      });
+    }
+  }
+  return goods;
+}
+
 // 2. Fetch all goods endpoint (with automatic pagination)
 app.post('/api/goods', async (req, res) => {
   const { token, type = 'main' } = req.body;
@@ -164,6 +322,67 @@ app.post('/api/goods', async (req, res) => {
   let pageNo = 1;
   const pageSize = 100;
   let totalCount = 0;
+
+  if (type === 'grabotech') {
+    try {
+      do {
+        const url = 'https://admin.grabotech.com/goods/goodsinfo/getlist.html';
+        const headers = {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Cookie': `PHPSESSID=${token}`,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        };
+
+        const querystring = require('querystring');
+        const payload = querystring.stringify({
+          page: pageNo,
+          pageSize: pageSize,
+          navigationId: 24,
+          name: '',
+          status: '',
+          goodsTypeId: '',
+          source: '',
+          retailId: ''
+        });
+
+        console.log(`Fetching Grabotech goods page ${pageNo} (pageSize: ${pageSize})...`);
+        const response = await axios.post(url, payload, { headers });
+
+        if (response.data) {
+          const html = response.data;
+          const pageGoods = parseGrabotechGoodsHtml(html);
+          allGoods = allGoods.concat(pageGoods);
+
+          const totalMatch = html.match(/Total\s+(\d+)\s+Pages/i);
+          const totalPages = totalMatch ? parseInt(totalMatch[1]) : 1;
+          
+          const itemsMatch = html.match(/Total\s+\d+\s+Pages\s+(\d+)\s+Items/i);
+          totalCount = itemsMatch ? parseInt(itemsMatch[1]) : allGoods.length;
+
+          console.log(`Grabotech Page ${pageNo} returned ${pageGoods.length} items. Total: ${totalCount}, Pages: ${totalPages}`);
+
+          if (pageGoods.length === 0 || pageNo >= totalPages || allGoods.length >= totalCount) {
+            break;
+          }
+          pageNo++;
+        } else {
+          throw new Error('Failed to query Grabotech goods (empty response)');
+        }
+      } while (allGoods.length < totalCount);
+
+      return res.json({
+        success: true,
+        total: allGoods.length,
+        goods: allGoods
+      });
+    } catch (err) {
+      console.error('Fetch Grabotech goods error:', err.message);
+      return res.status(500).json({
+        success: false,
+        error: err.response ? err.response.data : err.message
+      });
+    }
+  }
 
   if (type === 'itspc') {
     try {
@@ -346,10 +565,105 @@ async function createCategory(token, typeName, machineUuid = '155') {
 }
 
 
+// Helper: Upload product image to Grabotech
+async function uploadGrabotechImage(token, imageUrl) {
+  if (!imageUrl) return '';
+  try {
+    console.log(`Downloading image for Grabotech upload: ${imageUrl}`);
+    const imgResponse = await axios.get(imageUrl, {
+      responseType: 'arraybuffer',
+      headers: {
+        'User-Agent': 'Mozilla/5.0'
+      }
+    });
+
+    let filename = 'image.png';
+    const contentType = imgResponse.headers['content-type'] || 'image/png';
+    if (contentType.includes('jpeg') || contentType.includes('jpg')) filename = 'image.jpg';
+    else if (contentType.includes('gif')) filename = 'image.gif';
+    else if (contentType.includes('webp')) filename = 'image.webp';
+
+    const blob = new Blob([imgResponse.data], { type: contentType });
+    const form = new FormData();
+    form.append('pic1', blob, filename);
+
+    const uploadUrl = 'https://admin.grabotech.com/goods/goodsinfo/uploadImage';
+    const response = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Cookie': `PHPSESSID=${token}`,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      },
+      body: form
+    });
+
+    const resData = await response.json();
+    console.log('Grabotech upload image response:', resData);
+    if (resData) {
+      return resData.url || (resData.data && resData.data.src) || (resData.data && resData.data.url) || '';
+    }
+  } catch (err) {
+    console.error('Failed to upload image to Grabotech:', err.message);
+  }
+  return '';
+}
+
 // Helper: Check if product exists in target account by barcode or name (robust check to avoid duplicates)
 async function findProductInTarget(token, barcode, name, targetType = 'main') {
   const cleanName = name ? name.trim().toLowerCase() : '';
   const cleanBarcode = barcode ? barcode.trim() : '';
+
+  if (targetType === 'grabotech') {
+    const url = 'https://admin.grabotech.com/goods/goodsinfo/getlist.html';
+    const headers = {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Cookie': `PHPSESSID=${token}`,
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    };
+
+    const querystring = require('querystring');
+    
+    // 1. Try to search by barcode first
+    if (cleanBarcode) {
+      try {
+        const payload = querystring.stringify({
+          page: 1,
+          pageSize: 100,
+          navigationId: 24,
+          name: cleanBarcode
+        });
+        const response = await axios.post(url, payload, { headers });
+        if (response.data) {
+          const list = parseGrabotechGoodsHtml(response.data);
+          const matched = list.find(g => g.goodsCode && g.goodsCode.trim() === cleanBarcode);
+          if (matched) return { ...matched, type: 'grabotech' };
+        }
+      } catch (err) {
+        console.error('Error querying Grabotech target goods by barcode:', err.message);
+      }
+    }
+
+    // 2. Try to search by name
+    if (cleanName) {
+      try {
+        const payload = querystring.stringify({
+          page: 1,
+          pageSize: 100,
+          navigationId: 24,
+          name: name.trim()
+        });
+        const response = await axios.post(url, payload, { headers });
+        if (response.data) {
+          const list = parseGrabotechGoodsHtml(response.data);
+          const matched = list.find(g => g.goodsName && g.goodsName.trim().toLowerCase() === cleanName);
+          if (matched) return { ...matched, type: 'grabotech' };
+        }
+      } catch (err) {
+        console.error('Error querying Grabotech target goods by name:', err.message);
+      }
+    }
+    return null;
+  }
 
   if (targetType === 'itspc') {
     const url = 'https://sv.hnzczy.cn/goods/info/list';
@@ -489,7 +803,70 @@ app.post('/api/sync-item', async (req, res) => {
       }
 
       // We need to update the price in the target account
-      if (targetType === 'itspc') {
+      if (targetType === 'grabotech') {
+        console.log(`Updating Grabotech product details for "${good.goodsName}"...`);
+        
+        let finalImageUrl = existingProduct.goodsUrl || '';
+        if (good.goodsUrl && good.goodsUrl !== existingProduct.goodsUrl) {
+          finalImageUrl = await uploadGrabotechImage(targetToken, good.goodsUrl);
+        }
+
+        const categoryName = (good.customName || 'General').trim();
+        const categoryKey = categoryName.toLowerCase();
+        let targetCategoryId = 85; // Default categories
+        for (const [k, id] of Object.entries(GRABOTECH_SYSTEM_CATEGORIES)) {
+          if (categoryKey.includes(k)) {
+            targetCategoryId = id;
+            break;
+          }
+        }
+
+        const editUrl = 'https://admin.grabotech.com/goods/goodsinfo/edit.html';
+        const headers = {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Cookie': `PHPSESSID=${targetToken}`,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        };
+
+        const querystring = require('querystring');
+        const payload = querystring.stringify({
+          goodsId: existingProduct.uuid,
+          goodsTypeId: targetCategoryId,
+          addgoodsTypeId: targetCategoryId,
+          name: good.goodsName,
+          enName: good.goodsName,
+          unit: good.specsDesc || existingProduct.specsDesc || 'Bag',
+          salePrice: good.goodsPrice,
+          costPrice: good.costPrice,
+          qualityDay: 365,
+          isDefault: 1,
+          shapeCode: good.goodsCode || existingProduct.goodsCode || '',
+          heating: 0,
+          goodsBrandId: 0,
+          saleLimit: 0,
+          lenth: 0,
+          thirdGoodsCode: good.goodsCode || '',
+          specification: good.specsDesc || '',
+          picURL: finalImageUrl,
+          picURLs: '',
+          imageNamesAll: '',
+          nameAllToUp: ''
+        });
+
+        const response = await axios.post(editUrl, payload, { headers });
+        console.log('Grabotech update response:', response.data);
+        if (response.data && (response.data.code === 200 || response.data.status === 1 || (typeof response.data === 'string' && response.data.includes('成功')))) {
+          console.log(`Successfully updated Grabotech prices for "${good.goodsName}"`);
+          return res.json({
+            success: true,
+            status: 'synced',
+            message: `Updated price to ${good.goodsPrice}`
+          });
+        } else {
+          const errMsg = response.data ? (response.data.msg || response.data.info) : 'Failed to update Grabotech product';
+          throw new Error(errMsg);
+        }
+      } else if (targetType === 'itspc') {
         console.log(`Updating ITSPC prices for "${good.goodsName}"...`);
         const url = 'https://sv.hnzczy.cn/goods/info';
         const headers = {
@@ -586,7 +963,70 @@ app.post('/api/sync-item', async (req, res) => {
     }
 
     // If product does NOT exist in target and we want to copy it (modes: 'copy' or 'both')
-    if (targetType === 'itspc') {
+    if (targetType === 'grabotech') {
+      console.log(`Product "${good.goodsName}" does not exist in Grabotech target. Creating new product...`);
+      
+      let finalImageUrl = '';
+      if (good.goodsUrl) {
+        finalImageUrl = await uploadGrabotechImage(targetToken, good.goodsUrl);
+      }
+
+      const categoryName = (good.customName || 'General').trim();
+      const categoryKey = categoryName.toLowerCase();
+      let targetCategoryId = 85; // Default categories
+      for (const [k, id] of Object.entries(GRABOTECH_SYSTEM_CATEGORIES)) {
+        if (categoryKey.includes(k)) {
+          targetCategoryId = id;
+          break;
+        }
+      }
+
+      const createUrl = 'https://admin.grabotech.com/goods/goodsinfo/edit.html';
+      const headers = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Cookie': `PHPSESSID=${targetToken}`,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      };
+
+      const querystring = require('querystring');
+      const payload = querystring.stringify({
+        goodsId: '', // Empty for new
+        goodsTypeId: targetCategoryId,
+        addgoodsTypeId: targetCategoryId,
+        name: good.goodsName,
+        enName: good.goodsName,
+        unit: good.specsDesc || 'Bag',
+        salePrice: good.goodsPrice,
+        costPrice: good.costPrice,
+        qualityDay: 365,
+        isDefault: 1,
+        shapeCode: good.goodsCode || '',
+        heating: 0,
+        goodsBrandId: 0,
+        saleLimit: 0,
+        lenth: 0,
+        thirdGoodsCode: good.goodsCode || '',
+        specification: good.specsDesc || '',
+        picURL: finalImageUrl,
+        picURLs: '',
+        imageNamesAll: '',
+        nameAllToUp: ''
+      });
+
+      const response = await axios.post(createUrl, payload, { headers });
+      console.log('Grabotech creation response:', response.data);
+      if (response.data && (response.data.code === 200 || response.data.status === 1 || (typeof response.data === 'string' && response.data.includes('成功')))) {
+        console.log(`Successfully created Grabotech product "${good.goodsName}"`);
+        return res.json({
+          success: true,
+          status: 'synced',
+          message: 'Created new product in Grabotech'
+        });
+      } else {
+        const errMsg = response.data ? (response.data.msg || response.data.info) : 'Failed to create Grabotech product';
+        throw new Error(errMsg);
+      }
+    } else if (targetType === 'itspc') {
       console.log(`Product "${good.goodsName}" does not exist in target merchant library. Searching in Platform Goods Library...`);
       
       const searchUrl = 'https://sv.hnzczy.cn/machine/baseInfo/queryPtGoods';
@@ -841,27 +1281,19 @@ app.post('/api/sync-item', async (req, res) => {
       }
     }
 
-    // Step 3: Insert Product in Main Portal
+    // Step 3: Insert Product in Main Portal (with retry logic)
     console.log(`Inserting product "${good.goodsName}" into target...`);
-    const url = `${BASE_URL}/commcustomgoods/addcommcustomgoods`;
-    const qauth = getQAuthorization();
-    const headers = {
-      'Content-Type': 'application/json',
-      'authorization': targetToken,
-      'qauthorization': qauth,
-      'Accept': 'application/json, text/plain, */*',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    };
+    const addUrl = `${BASE_URL}/commcustomgoods/addcommcustomgoods`;
 
     const payload = {
       goodsTypeStr: 2,
       machineUuid: targetMachineUuid,
       cateUuid: targetCateUuid,
-      goodsName: good.goodsName,
+      goodsName: (good.goodsName || '').trim(),
       goodsCode: good.goodsCode || '',
-      goodsPrice: good.goodsPrice,
-      membersPrice: good.membersPrice || 0,
-      costPrice: good.costPrice,
+      goodsPrice: parseFloat(good.goodsPrice) || 0,
+      membersPrice: parseFloat(good.membersPrice) || 0,
+      costPrice: parseFloat(good.costPrice) || 0,
       specsDesc: good.specsDesc || '',
       brand: good.brand || '',
       goodsStat: typeof good.goodsStat !== 'undefined' ? good.goodsStat : 1,
@@ -875,18 +1307,60 @@ app.post('/api/sync-item', async (req, res) => {
       goodsAttribute: good.goodsAttribute || ''
     };
 
-    const response = await axios.post(url, payload, { headers });
-    
-    if (response.data && response.data.result === 'true') {
-      console.log(`Successfully synced "${good.goodsName}"`);
-      return res.json({
-        success: true,
-        status: 'synced',
-        message: 'Successfully synchronized product'
-      });
-    } else {
-      throw new Error(response.data ? response.data.resultDesc : 'Failed to add product');
+    const MAX_INSERT_RETRIES = 3;
+    let lastInsertError = 'Failed to add product';
+
+    for (let attempt = 1; attempt <= MAX_INSERT_RETRIES; attempt++) {
+      try {
+        // Fresh qauthorization per attempt (time-based signature)
+        const freshQauth = getQAuthorization();
+        const insertHeaders = {
+          'Content-Type': 'application/json',
+          'authorization': targetToken,
+          'qauthorization': freshQauth,
+          'Accept': 'application/json, text/plain, */*',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        };
+
+        const addResponse = await axios.post(addUrl, payload, { headers: insertHeaders });
+
+        if (addResponse.data && addResponse.data.result === 'true') {
+          console.log(`Successfully synced "${good.goodsName}"${attempt > 1 ? ` (attempt ${attempt})` : ''}`);
+          return res.json({
+            success: true,
+            status: 'synced',
+            message: 'Successfully synchronized product'
+          });
+        }
+
+        lastInsertError = addResponse.data ? addResponse.data.resultDesc : 'Failed to add product';
+        console.error(`Insert attempt ${attempt}/${MAX_INSERT_RETRIES} failed for "${good.goodsName}": ${lastInsertError}`);
+        console.error(`Full API response: ${JSON.stringify(addResponse.data)}`);
+      } catch (axiosErr) {
+        lastInsertError = axiosErr.message || 'Network error during insert';
+        console.error(`Insert attempt ${attempt}/${MAX_INSERT_RETRIES} error for "${good.goodsName}": ${lastInsertError}`);
+      }
+
+      if (attempt < MAX_INSERT_RETRIES) {
+        const backoffMs = 2000 * attempt;
+        console.log(`Waiting ${backoffMs}ms before retry...`);
+        await new Promise(r => setTimeout(r, backoffMs));
+
+        // Re-check: product might have been created despite error response
+        const recheck = await findProductInTarget(targetToken, good.goodsCode, good.goodsName, targetType);
+        if (recheck) {
+          console.log(`Product "${good.goodsName}" found on re-check after failed insert. Treating as success.`);
+          return res.json({
+            success: true,
+            status: 'synced',
+            message: 'Product verified as synced after re-check'
+          });
+        }
+        console.log(`Retrying insert for "${good.goodsName}" (attempt ${attempt + 1}/${MAX_INSERT_RETRIES})...`);
+      }
     }
+
+    throw new Error(lastInsertError);
 
   } catch (err) {
     console.error(`Error syncing "${good.goodsName}":`, err.message);

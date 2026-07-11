@@ -13,10 +13,7 @@ import {
   Info,
   Trash,
   DownloadSimple,
-  Image,
-  Coins,
-  Percent,
-  Tag
+  Image
 } from '@phosphor-icons/react';
 
 export default function App() {
@@ -54,7 +51,6 @@ export default function App() {
     setSourceToken('');
     setSourceUser(null);
     setGoods([]);
-    setOriginalGoods([]);
     setSourceCaptchaUrl('');
     setSourceSessionCookie('');
     setSourceVifCode('');
@@ -105,17 +101,12 @@ export default function App() {
 
   // Goods Data State
   const [goods, setGoods] = useState([]);
-  const [originalGoods, setOriginalGoods] = useState([]); // Backup for pricing resets
   const [isFetchingGoods, setIsFetchingGoods] = useState(false);
   const [goodsFetchError, setGoodsFetchError] = useState('');
   const [targetGoods, setTargetGoods] = useState([]);
   const [isLoadingTargetGoods, setIsLoadingTargetGoods] = useState(false);
   const [activeCatalogTab, setActiveCatalogTab] = useState('source');
   const [selectedIds, setSelectedIds] = useState(new Set());
-
-  // Pricing Adjustment State
-  const [priceAdjMethod, setPriceAdjMethod] = useState('margin_cost'); // 'margin_cost', 'markup_sale', 'fixed'
-  const [priceAdjValue, setPriceAdjValue] = useState('');
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -253,67 +244,6 @@ export default function App() {
     }
   };
 
-  // Handle inline manual price change
-  const handlePriceChange = (uuid, field, value) => {
-    const numValue = value === '' ? 0 : parseFloat(value);
-    setGoods(prev => prev.map(g => {
-      if (g.uuid === uuid) {
-        return { ...g, [field]: numValue };
-      }
-      return g;
-    }));
-  };
-
-  // Apply pricing adjustments in bulk
-  const applyPricingAdjustment = (applyToAll = false) => {
-    const value = parseFloat(priceAdjValue);
-    if (isNaN(value)) {
-      alert('Please enter a valid numeric value for the adjustment.');
-      return;
-    }
-
-    setGoods(prev => prev.map(g => {
-      const shouldApply = applyToAll || selectedIds.has(g.uuid);
-      if (!shouldApply) return g;
-
-      const origItem = originalGoods.find(orig => orig.uuid === g.uuid) || g;
-      const originalCost = parseFloat(origItem.costPrice) || 0;
-      const originalSale = parseFloat(origItem.goodsPrice) || 0;
-
-      let newSalePrice = g.goodsPrice;
-
-      if (priceAdjMethod === 'margin_cost') {
-        newSalePrice = Math.round(originalCost * (1 + value / 100));
-      } else if (priceAdjMethod === 'markup_sale') {
-        newSalePrice = Math.round(originalSale * (1 + value / 100));
-      } else if (priceAdjMethod === 'fixed') {
-        newSalePrice = value;
-      }
-
-      let newMembersPrice = g.membersPrice;
-      if (origItem.membersPrice && originalSale > 0) {
-        newMembersPrice = Math.round(newSalePrice * (origItem.membersPrice / originalSale));
-      } else {
-        newMembersPrice = newSalePrice;
-      }
-
-      return {
-        ...g,
-        goodsPrice: newSalePrice,
-        membersPrice: newMembersPrice
-      };
-    }));
-
-    addLog(`Applied pricing adjustment (${priceAdjMethod === 'fixed' ? 'Fixed Rp ' + value : value + '% margin'}) to ${applyToAll ? 'all' : selectedIds.size} items.`);
-  };
-
-  // Reset all prices to original loaded prices
-  const resetPrices = () => {
-    if (originalGoods.length === 0) return;
-    setGoods(JSON.parse(JSON.stringify(originalGoods)));
-    addLog('Reset all item prices to original catalog prices.');
-  };
-
   // Fetch Goods from Source
   const fetchGoods = async (token = sourceToken) => {
     if (!token) return;
@@ -328,7 +258,6 @@ export default function App() {
       const data = await response.json();
       if (response.ok && data.success) {
         setGoods(data.goods);
-        setOriginalGoods(JSON.parse(JSON.stringify(data.goods)));
         setSelectedIds(new Set());
         addLog(`Loaded ${data.goods.length} custom goods from source account.`);
       } else {
@@ -747,9 +676,9 @@ export default function App() {
                 <div className="bg-white/2 rounded-xl p-3.5 border border-white/5 space-y-1.5 text-xs text-slate-400">
                   <div className="flex justify-between"><span className="text-slate-500">Contact:</span><span className="font-medium text-slate-200">{sourceUser.contactMan || '-'}</span></div>
                   <div className="flex justify-between"><span className="text-slate-500">Email:</span><span className="font-medium text-slate-200">{sourceUser.email || '-'}</span></div>
-                   <button 
+                  <button 
                     type="button" 
-                    onClick={() => { setSourceToken(''); setSourceUser(null); setGoods([]); setOriginalGoods([]); }}
+                    onClick={() => { setSourceToken(''); setSourceUser(null); setGoods([]); }}
                     className="w-full mt-3 text-center py-1.5 border border-white/10 hover:border-rose-500/30 text-slate-400 hover:text-rose-400 rounded-lg transition-all duration-200 font-medium"
                   >
                     Disconnect Account
@@ -977,81 +906,6 @@ export default function App() {
               </button>
             </div>
           </div>
-
-          {/* Pricing Adjustment Panel */}
-          {goods.length > 0 && (
-            <section className="liquid-glass rounded-3xl p-6 border border-white/5 space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-emerald-500/10 p-2 rounded-xl text-emerald-400">
-                  <Coins size={20} />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-white">Pricing Adjustment (Penyesuaian Harga)</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">Atur margin persentase atau harga jual tetap secara massal sebelum sinkronisasi</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                {/* Method Selector */}
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs font-medium text-slate-400">Metode Penyesuaian</label>
-                  <select
-                    value={priceAdjMethod}
-                    onChange={(e) => setPriceAdjMethod(e.target.value)}
-                    className="bg-[#12141d]/80 border border-white/5 focus:border-emerald-500/50 rounded-xl px-3 py-2.5 text-xs text-slate-300 focus:outline-none transition-all"
-                  >
-                    <option value="margin_cost">Margin dari Modal (% Cost)</option>
-                    <option value="markup_sale">Markup dari Jual Asal (% Jual)</option>
-                    <option value="fixed">Harga Jual Tetap (Fixed Rp)</option>
-                  </select>
-                </div>
-
-                {/* Input Value */}
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs font-medium text-slate-400">
-                    {priceAdjMethod === 'fixed' ? 'Nominal (Rp)' : 'Persentase (%)'}
-                  </label>
-                  <input
-                    type="number"
-                    value={priceAdjValue}
-                    onChange={(e) => setPriceAdjValue(e.target.value)}
-                    placeholder={priceAdjMethod === 'fixed' ? 'Contoh: 15000' : 'Contoh: 20'}
-                    className="bg-[#12141d]/80 border border-white/5 focus:border-emerald-500/50 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none transition-all"
-                  />
-                </div>
-
-                {/* Actions */}
-                <div className="flex flex-col gap-2 md:col-span-2">
-                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Aksi Penyesuaian</label>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => applyPricingAdjustment(false)}
-                      disabled={selectedIds.size === 0}
-                      className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:pointer-events-none text-[#090a0f] text-xs font-bold rounded-xl active:scale-[0.98] transition-all"
-                    >
-                      Terapkan Terpilih ({selectedIds.size})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => applyPricingAdjustment(true)}
-                      className="flex-1 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-xs font-bold rounded-xl active:scale-[0.98] transition-all"
-                    >
-                      Terapkan Semua ({goods.length})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={resetPrices}
-                      className="py-2.5 px-3.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-400 text-xs font-bold rounded-xl active:scale-[0.98] transition-all"
-                      title="Reset ke Harga Asli"
-                    >
-                      Reset
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </section>
-          )}
 
           {/* Image Download Progress Card */}
           {imageDownloadTask && imageDownloadTask.status !== 'idle' && (
@@ -1380,44 +1234,13 @@ export default function App() {
                                 {good.customName || 'General'}
                               </span>
                             </td>
-                            <td className="py-3 px-4 text-right font-mono">
-                              {activeCatalogTab === 'source' ? (
-                                <div className="flex flex-col items-end gap-1">
-                                  <div className="flex items-center gap-1.5 justify-end">
-                                    <span className="text-[9px] text-slate-500 uppercase tracking-wider">Jual:</span>
-                                    <div className="relative flex items-center">
-                                      <span className="absolute left-1 text-[10px] text-slate-500">Rp</span>
-                                      <input
-                                        type="number"
-                                        value={good.goodsPrice || 0}
-                                        onChange={(e) => handlePriceChange(good.uuid, 'goodsPrice', e.target.value)}
-                                        className="w-20 bg-[#12141d]/80 border border-white/5 focus:border-emerald-500/50 rounded-lg pl-5 pr-1 py-1 text-[11px] text-right text-slate-200 focus:outline-none focus:ring-0"
-                                      />
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-1.5 justify-end">
-                                    <span className="text-[9px] text-slate-500 uppercase tracking-wider">Modal:</span>
-                                    <div className="relative flex items-center">
-                                      <span className="absolute left-1 text-[10px] text-slate-500">Rp</span>
-                                      <input
-                                        type="number"
-                                        value={good.costPrice || 0}
-                                        onChange={(e) => handlePriceChange(good.uuid, 'costPrice', e.target.value)}
-                                        className="w-20 bg-[#12141d]/80 border border-white/5 focus:border-emerald-500/50 rounded-lg pl-5 pr-1 py-0.5 text-[10px] text-right text-slate-400 focus:outline-none focus:ring-0"
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="space-y-0.5">
-                                  <div className="text-slate-300">
-                                    Rp {String(good.goodsPrice || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
-                                  </div>
-                                  <div className="text-[10px] text-slate-500">
-                                    Cost: Rp {String(good.costPrice || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
-                                  </div>
-                                </div>
-                              )}
+                            <td className="py-3 px-4 text-right space-y-0.5 font-mono">
+                              <div className="text-slate-300">
+                                Rp {String(good.goodsPrice).replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
+                              </div>
+                              <div className="text-[10px] text-slate-500">
+                                Cost: Rp {String(good.costPrice).replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
+                              </div>
                             </td>
                             {activeCatalogTab === 'source' && (
                               <td className="py-3 px-4 text-center">
