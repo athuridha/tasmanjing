@@ -95,6 +95,7 @@ export default function App() {
     setTargetToken('');
     setTargetUser(null);
     setTargetGoods([]);
+    setOriginalTargetGoods([]);
     setTargetCaptchaUrl('');
     setTargetSessionCookie('');
     setTargetVifCode('');
@@ -109,6 +110,7 @@ export default function App() {
   const [isFetchingGoods, setIsFetchingGoods] = useState(false);
   const [goodsFetchError, setGoodsFetchError] = useState('');
   const [targetGoods, setTargetGoods] = useState([]);
+  const [originalTargetGoods, setOriginalTargetGoods] = useState([]); // Backup for target pricing resets
   const [isLoadingTargetGoods, setIsLoadingTargetGoods] = useState(false);
   const [activeCatalogTab, setActiveCatalogTab] = useState('source');
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -242,6 +244,7 @@ export default function App() {
       const data = await response.json();
       if (response.ok && data.success) {
         setTargetGoods(data.goods);
+        setOriginalTargetGoods(JSON.parse(JSON.stringify(data.goods)));
         addLog(`Successfully loaded ${data.goods.length} goods from Target account.`);
       } else {
         addLog(`Warning: Failed to fetch Target goods: ${data.error || 'unknown error'}`);
@@ -256,12 +259,21 @@ export default function App() {
   // Handle inline manual price change
   const handlePriceChange = (uuid, field, value) => {
     const numValue = value === '' ? 0 : parseFloat(value);
-    setGoods(prev => prev.map(g => {
-      if (g.uuid === uuid) {
-        return { ...g, [field]: numValue };
-      }
-      return g;
-    }));
+    if (activeCatalogTab === 'source') {
+      setGoods(prev => prev.map(g => {
+        if (g.uuid === uuid) {
+          return { ...g, [field]: numValue };
+        }
+        return g;
+      }));
+    } else {
+      setTargetGoods(prev => prev.map(g => {
+        if (g.uuid === uuid) {
+          return { ...g, [field]: numValue };
+        }
+        return g;
+      }));
+    }
   };
 
   // Apply pricing adjustments in bulk
@@ -272,11 +284,14 @@ export default function App() {
       return;
     }
 
-    setGoods(prev => prev.map(g => {
+    const backupCatalog = activeCatalogTab === 'source' ? originalGoods : originalTargetGoods;
+    const setter = activeCatalogTab === 'source' ? setGoods : setTargetGoods;
+
+    setter(prev => prev.map(g => {
       const shouldApply = applyToAll || selectedIds.has(g.uuid);
       if (!shouldApply) return g;
 
-      const origItem = originalGoods.find(orig => orig.uuid === g.uuid) || g;
+      const origItem = backupCatalog.find(orig => orig.uuid === g.uuid) || g;
       const originalCost = parseFloat(origItem.costPrice) || 0;
       const originalSale = parseFloat(origItem.goodsPrice) || 0;
 
@@ -304,14 +319,19 @@ export default function App() {
       };
     }));
 
-    addLog(`Applied pricing adjustment (${priceAdjMethod === 'fixed' ? 'Fixed Rp ' + value : value + '% margin'}) to ${applyToAll ? 'all' : selectedIds.size} items.`);
+    addLog(`Applied pricing adjustment (${priceAdjMethod === 'fixed' ? 'Fixed Rp ' + value : value + '% margin'}) to ${applyToAll ? 'all' : selectedIds.size} items in ${activeCatalogTab} catalog.`);
   };
 
   // Reset all prices to original loaded prices
   const resetPrices = () => {
-    if (originalGoods.length === 0) return;
-    setGoods(JSON.parse(JSON.stringify(originalGoods)));
-    addLog('Reset all item prices to original catalog prices.');
+    if (activeCatalogTab === 'source') {
+      if (originalGoods.length === 0) return;
+      setGoods(JSON.parse(JSON.stringify(originalGoods)));
+    } else {
+      if (originalTargetGoods.length === 0) return;
+      setTargetGoods(JSON.parse(JSON.stringify(originalTargetGoods)));
+    }
+    addLog(`Reset all ${activeCatalogTab} item prices to original catalog prices.`);
   };
 
   // Fetch Goods from Source
@@ -345,7 +365,8 @@ export default function App() {
   const handleSyncGoods = async () => {
     if (isSyncing || selectedIds.size === 0 || !targetToken || !targetUser) return;
 
-    const selectedList = goods.filter(g => selectedIds.has(g.uuid));
+    const currentCatalog = activeCatalogTab === 'source' ? goods : targetGoods;
+    const selectedList = currentCatalog.filter(g => selectedIds.has(g.uuid));
     const total = selectedList.length;
 
     setIsSyncing(true);
@@ -353,7 +374,11 @@ export default function App() {
     
     setSyncProgress({ current: 0, total, success: 0, skipped: 0, error: 0 });
     setSyncResults({});
-    addLog(`Starting synchronization of ${total} selected items...`);
+    if (activeCatalogTab === 'target') {
+      addLog(`Starting price update of ${total} selected target items...`);
+    } else {
+      addLog(`Starting synchronization of ${total} selected items...`);
+    }
 
     let successCount = 0;
     let skippedCount = 0;
@@ -366,9 +391,13 @@ export default function App() {
       setSyncProgress(prev => ({ ...prev, current: currentProgress }));
       setSyncResults(prev => ({
         ...prev,
-        [good.uuid]: { status: 'syncing', message: 'Syncing product...' }
+        [good.uuid]: { status: 'syncing', message: activeCatalogTab === 'target' ? 'Updating target price...' : 'Syncing product...' }
       }));
-      addLog(`[${currentProgress}/${total}] Syncing: "${good.goodsName}"...`);
+      if (activeCatalogTab === 'target') {
+        addLog(`[${currentProgress}/${total}] Updating target price: "${good.goodsName}"...`);
+      } else {
+        addLog(`[${currentProgress}/${total}] Syncing: "${good.goodsName}"...`);
+      }
 
       try {
         const response = await fetch('/api/sync-item', {
@@ -378,7 +407,7 @@ export default function App() {
             targetToken,
             targetUserUuid: targetUser.uuid,
             good,
-            mode: syncMode,
+            mode: activeCatalogTab === 'target' ? 'price' : syncMode,
             targetType,
             sourceType
           })
@@ -397,17 +426,21 @@ export default function App() {
             successCount++;
             setSyncResults(prev => ({
               ...prev,
-              [good.uuid]: { status: 'success', message: 'Successfully synced' }
+              [good.uuid]: { status: 'success', message: activeCatalogTab === 'target' ? 'Successfully updated' : 'Successfully synced' }
             }));
-            addLog(`↳ Success: "${good.goodsName}" synced successfully.`);
+            if (activeCatalogTab === 'target') {
+              addLog(`↳ Success: "${good.goodsName}" price updated successfully.`);
+            } else {
+              addLog(`↳ Success: "${good.goodsName}" synced successfully.`);
+            }
           }
         } else {
           errorCount++;
           setSyncResults(prev => ({
             ...prev,
-            [good.uuid]: { status: 'error', message: data.error || 'Failed to sync' }
+            [good.uuid]: { status: 'error', message: data.error || (activeCatalogTab === 'target' ? 'Failed to update' : 'Failed to sync') }
           }));
-          addLog(`↳ Error: Failed to sync "${good.goodsName}" - ${data.error}`);
+          addLog(`↳ Error: Failed for "${good.goodsName}" - ${data.error}`);
         }
       } catch (err) {
         errorCount++;
@@ -415,7 +448,7 @@ export default function App() {
           ...prev,
           [good.uuid]: { status: 'error', message: 'Network or server error' }
         }));
-        addLog(`↳ Error: Failed to sync "${good.goodsName}" - Network error`);
+        addLog(`↳ Error: Failed for "${good.goodsName}" - Network error`);
       }
 
       setSyncProgress(prev => ({
@@ -893,7 +926,7 @@ export default function App() {
                   <div className="flex justify-between"><span className="text-slate-500">Email:</span><span className="font-medium text-slate-200">{targetUser.email || '-'}</span></div>
                   <button 
                     type="button" 
-                    onClick={() => { setTargetToken(''); setTargetUser(null); }}
+                    onClick={() => { setTargetToken(''); setTargetUser(null); setTargetGoods([]); setOriginalTargetGoods([]); }}
                     className="w-full mt-3 text-center py-1.5 border border-white/10 hover:border-rose-500/30 text-slate-400 hover:text-rose-400 rounded-lg transition-all duration-200 font-medium"
                   >
                     Disconnect Account
@@ -973,7 +1006,10 @@ export default function App() {
                 className="w-full sm:w-auto flex items-center justify-center gap-2 py-3 px-6 bg-emerald-500 hover:bg-emerald-400 disabled:bg-white/5 disabled:text-slate-500 text-[#090a0f] active:scale-[0.98] text-sm font-bold rounded-2xl spring-transition disabled:scale-100 disabled:pointer-events-none mt-4 sm:mt-0"
               >
                 {isSyncing ? <ArrowsClockwise size={16} className="animate-spin" /> : <Play size={16} />}
-                Sync {selectedIds.size > 0 ? `${selectedIds.size} Items` : 'Selected'}
+                {activeCatalogTab === 'target' 
+                  ? `Update ${selectedIds.size > 0 ? `${selectedIds.size} Prices` : 'Prices'}`
+                  : `Sync ${selectedIds.size > 0 ? `${selectedIds.size} Items` : 'Selected'}`
+                }
               </button>
             </div>
           </div>
@@ -1381,43 +1417,32 @@ export default function App() {
                               </span>
                             </td>
                             <td className="py-3 px-4 text-right font-mono">
-                              {activeCatalogTab === 'source' ? (
-                                <div className="flex flex-col items-end gap-1">
-                                  <div className="flex items-center gap-1.5 justify-end">
-                                    <span className="text-[9px] text-slate-500 uppercase tracking-wider">Jual:</span>
-                                    <div className="relative flex items-center">
-                                      <span className="absolute left-1 text-[10px] text-slate-500">Rp</span>
-                                      <input
-                                        type="number"
-                                        value={good.goodsPrice || 0}
-                                        onChange={(e) => handlePriceChange(good.uuid, 'goodsPrice', e.target.value)}
-                                        className="w-20 bg-[#12141d]/80 border border-white/5 focus:border-emerald-500/50 rounded-lg pl-5 pr-1 py-1 text-[11px] text-right text-slate-200 focus:outline-none focus:ring-0"
-                                      />
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-1.5 justify-end">
-                                    <span className="text-[9px] text-slate-500 uppercase tracking-wider">Modal:</span>
-                                    <div className="relative flex items-center">
-                                      <span className="absolute left-1 text-[10px] text-slate-500">Rp</span>
-                                      <input
-                                        type="number"
-                                        value={good.costPrice || 0}
-                                        onChange={(e) => handlePriceChange(good.uuid, 'costPrice', e.target.value)}
-                                        className="w-20 bg-[#12141d]/80 border border-white/5 focus:border-emerald-500/50 rounded-lg pl-5 pr-1 py-0.5 text-[10px] text-right text-slate-400 focus:outline-none focus:ring-0"
-                                      />
-                                    </div>
+                              <div className="flex flex-col items-end gap-1">
+                                <div className="flex items-center gap-1.5 justify-end">
+                                  <span className="text-[9px] text-slate-500 uppercase tracking-wider">Jual:</span>
+                                  <div className="relative flex items-center">
+                                    <span className="absolute left-1 text-[10px] text-slate-500">Rp</span>
+                                    <input
+                                      type="number"
+                                      value={good.goodsPrice || 0}
+                                      onChange={(e) => handlePriceChange(good.uuid, 'goodsPrice', e.target.value)}
+                                      className="w-20 bg-[#12141d]/80 border border-white/5 focus:border-emerald-500/50 rounded-lg pl-5 pr-1 py-1 text-[11px] text-right text-slate-200 focus:outline-none focus:ring-0"
+                                    />
                                   </div>
                                 </div>
-                              ) : (
-                                <div className="space-y-0.5">
-                                  <div className="text-slate-300">
-                                    Rp {String(good.goodsPrice || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
-                                  </div>
-                                  <div className="text-[10px] text-slate-500">
-                                    Cost: Rp {String(good.costPrice || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
+                                <div className="flex items-center gap-1.5 justify-end">
+                                  <span className="text-[9px] text-slate-500 uppercase tracking-wider">Modal:</span>
+                                  <div className="relative flex items-center">
+                                    <span className="absolute left-1 text-[10px] text-slate-500">Rp</span>
+                                    <input
+                                      type="number"
+                                      value={good.costPrice || 0}
+                                      onChange={(e) => handlePriceChange(good.uuid, 'costPrice', e.target.value)}
+                                      className="w-20 bg-[#12141d]/80 border border-white/5 focus:border-emerald-500/50 rounded-lg pl-5 pr-1 py-0.5 text-[10px] text-right text-slate-400 focus:outline-none focus:ring-0"
+                                    />
                                   </div>
                                 </div>
-                              )}
+                              </div>
                             </td>
                             {activeCatalogTab === 'source' && (
                               <td className="py-3 px-4 text-center">
@@ -1476,8 +1501,14 @@ export default function App() {
                 <Warning size={22} />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white">Konfirmasi Sinkronisasi</h3>
-                <p className="text-xs text-slate-400">Harap periksa kembali sebelum melanjutkan</p>
+                <h3 className="text-base font-bold text-white">
+                  {activeCatalogTab === 'target' ? 'Konfirmasi Perubahan Harga Target' : 'Konfirmasi Sinkronisasi'}
+                </h3>
+                <p className="text-xs text-slate-400">
+                  {activeCatalogTab === 'target' 
+                    ? 'Harap periksa kembali perubahan harga langsung sebelum menyimpan' 
+                    : 'Harap periksa kembali sebelum melanjutkan'}
+                </p>
               </div>
             </div>
 
@@ -1506,24 +1537,40 @@ export default function App() {
 
                 <div className="space-y-1">
                   <div className="flex justify-between items-center">
-                    <span className="text-slate-400 text-xs">Mode Sinkronisasi:</span>
+                    <span className="text-slate-400 text-xs">Mode Aksi:</span>
                     <span className="font-bold text-emerald-400 text-xs">
-                      {syncMode === 'both' && 'Copy & Price (Salin & Harga)'}
-                      {syncMode === 'copy' && 'Copy Only (Salin Baru Saja)'}
-                      {syncMode === 'price' && 'Price Only (Harga Saja)'}
+                      {activeCatalogTab === 'target' ? (
+                        'Price Update Only (Pembaluan Harga)'
+                      ) : (
+                        <>
+                          {syncMode === 'both' && 'Copy & Price (Salin & Harga)'}
+                          {syncMode === 'copy' && 'Copy Only (Salin Baru Saja)'}
+                          {syncMode === 'price' && 'Price Only (Harga Saja)'}
+                        </>
+                      )}
                     </span>
                   </div>
-                  <p className="text-[10px] text-slate-500 mt-1 italic leading-relaxed">
-                    {syncMode === 'both' && '*Menyalin semua produk baru dan menyamakan harga produk yang sudah ada di target.'}
-                    {syncMode === 'copy' && '*Hanya menyalin produk yang belum ada di target. Harga produk lama TIDAK diubah.'}
-                    {syncMode === 'price' && '*Hanya menyamakan harga produk yang sudah terdaftar di target. Produk baru diabaikan.'}
-                  </p>
+                  <div className="text-[10px] text-slate-500 mt-1 italic leading-relaxed">
+                    {activeCatalogTab === 'target' ? (
+                      '*Pembaluan harga langsung pada akun target berdasarkan nilai yang Anda ketik / ubah.'
+                    ) : (
+                      <>
+                        {syncMode === 'both' && '*Menyalin semua produk baru dan menyamakan harga produk yang sudah ada di target.'}
+                        {syncMode === 'copy' && '*Hanya menyalin produk yang belum ada di target. Harga produk lama TIDAK diubah.'}
+                        {syncMode === 'price' && '*Hanya menyamakan harga produk yang sudah terdaftar di target. Produk baru diabaikan.'}
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
 
               <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-3 text-[11px] text-rose-400 flex gap-2">
                 <Info size={16} className="shrink-0 mt-0.5" />
-                <span>Peringatan: Aksi ini tidak dapat dibatalkan setelah eksekusi berjalan. Pastikan mode di atas sesuai niat Anda!</span>
+                <span>
+                  {activeCatalogTab === 'target'
+                    ? 'Peringatan: Perubahan harga akan langsung aktif di portal target setelah proses selesai berjalan!'
+                    : 'Peringatan: Aksi ini tidak dapat dibatalkan setelah eksekusi berjalan. Pastikan mode di atas sesuai niat Anda!'}
+                </span>
               </div>
             </div>
 
@@ -1544,7 +1591,7 @@ export default function App() {
                 }}
                 className="flex-1 py-3 text-center bg-emerald-500 hover:bg-emerald-400 text-[#090a0f] rounded-xl transition-all duration-200 text-sm font-bold active:scale-[0.98] shadow-lg shadow-emerald-500/10"
               >
-                Mulai Sync
+                {activeCatalogTab === 'target' ? 'Mulai Update' : 'Mulai Sync'}
               </button>
             </div>
           </div>
