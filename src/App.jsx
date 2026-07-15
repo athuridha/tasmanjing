@@ -608,32 +608,89 @@ export default function App() {
 
   const handleCopyFailedGoods = () => {
     if (failedGoods.length === 0) return;
-    const header = "Name\tBarcode\tPrice\tCost\tCategory\tUnit\tError\n";
-    const rows = failedGoods.map(g => 
-      `"${g.goodsName || ''}"\t"${g.goodsCode || ''}"\t${g.goodsPrice || 0}\t${g.costPrice || 0}\t"${g.customName || ''}"\t"${g.specsDesc || ''}"\t"${g.error || ''}"`
-    ).join('\n');
+    
+    const headers = [
+      'Product ID',
+      'Name',
+      'Barcode',
+      'Category',
+      'Retail Price',
+      'Cost Price',
+      'Brand',
+      'Specs',
+      'Main Image URL',
+      'Intro Image URL',
+      'Enabled',
+      'Error Reason'
+    ];
+
+    const header = headers.join('\t') + '\n';
+    const rows = failedGoods.map(g => [
+      g.uuid || '',
+      g.goodsName || '',
+      g.goodsCode || '',
+      g.customName || 'General',
+      g.goodsPrice || 0,
+      g.costPrice || 0,
+      g.brand || '',
+      g.specsDesc || '',
+      g.goodsUrl || '',
+      g.introduceUrl || '',
+      typeof g.goodsStat !== 'undefined' ? g.goodsStat : 1,
+      g.error || ''
+    ].map(val => {
+      const str = String(val).replace(/\t/g, ' ').replace(/\n/g, ' ');
+      return str.includes(' ') || str.includes('"') ? `"${str.replace(/"/g, '""')}"` : str;
+    }).join('\t')).join('\n');
+    
     navigator.clipboard.writeText(header + rows);
     alert('Copied failed products list to clipboard in tab-separated (TSV) format. You can paste it directly into Excel or Google Sheets.');
   };
 
   const handleDownloadFailedCSV = () => {
     if (failedGoods.length === 0) return;
-    const headers = ["Name", "Barcode", "Price", "Cost", "Category", "Unit", "Error"];
+    
+    const headers = [
+      'Product ID',
+      'Name',
+      'Barcode',
+      'Category',
+      'Retail Price',
+      'Cost Price',
+      'Brand',
+      'Specs',
+      'Main Image URL',
+      'Intro Image URL',
+      'Enabled',
+      'Error Reason'
+    ];
+
     const rows = failedGoods.map(g => [
-      g.goodsName || '',
-      g.goodsCode || '',
+      g.uuid || '',
+      `"${(g.goodsName || '').replace(/"/g, '""')}"`,
+      `"${(g.goodsCode || '').replace(/"/g, '""')}"`,
+      `"${(g.customName || 'General').replace(/"/g, '""')}"`,
       g.goodsPrice || 0,
       g.costPrice || 0,
-      g.customName || '',
-      g.specsDesc || '',
-      g.error || ''
+      `"${(g.brand || '').replace(/"/g, '""')}"`,
+      `"${(g.specsDesc || '').replace(/"/g, '""')}"`,
+      g.goodsUrl || '',
+      g.introduceUrl || '',
+      typeof g.goodsStat !== 'undefined' ? g.goodsStat : 1,
+      `"${(g.error || '').replace(/"/g, '""')}"`
     ]);
-    const csvString = [headers.join(','), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))].join('\n');
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(r => r.join(','))
+    ].join('\n');
+    
+    const csvString = '\uFEFF' + csvContent;
     const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `failed_products_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute("download", `failed_goods_export_${Date.now()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
