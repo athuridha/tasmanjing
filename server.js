@@ -876,13 +876,34 @@ app.post('/api/sync-item', async (req, res) => {
           'User-Agent': 'Mozilla/5.0'
         };
 
+        const categoryName = (good.customName || 'General').trim();
+        const categoryKey = categoryName.toLowerCase();
+        let targetCategoryId = 5537;
+        let targetCategoryName = "อื่นๆ L (Non-Food & Drink)";
+
+        for (const [k, id] of Object.entries(ITSPC_SYSTEM_CATEGORIES)) {
+          if (categoryKey.includes(k)) {
+            targetCategoryId = id;
+            if (id === 5535) targetCategoryName = "Cake & Bakery";
+            else if (id === 5529) targetCategoryName = "Coffee&Tea L";
+            else if (id === 5531) targetCategoryName = "นม L (Milk/Soy Milk)";
+            else if (id === 5534) targetCategoryName = "ขนมขบเคี้ยว (Snacks)";
+            else if (id === 5543) targetCategoryName = "บ.สำเร็จรูป L (Ins.Noodle)";
+            else if (id === 5524) targetCategoryName = "น้ำแร่ OutS H (Mineral water)";
+            else if (id === 5525) targetCategoryName = "เครื่องดื่ม L (Beverages)";
+            else if (id === 5527) targetCategoryName = "น้ำอัดลม L (Soft Drink)";
+            else if (id === 5541) targetCategoryName = "เครื่องดื่มกำลัง L (EnergyD)";
+            break;
+          }
+        }
+
         const payload = {
           goodsInfoBo: {
             id: existingProduct.goodsInfoId,
             goodsName: existingProduct.goodsInfoVo.goodsName,
             goodsCode: existingProduct.goodsInfoVo.goodsCode,
             factory: existingProduct.goodsInfoVo.factory,
-            goodsCategoryId: existingProduct.goodsInfoVo.goodsCategoryId,
+            goodsCategoryId: targetCategoryId,
             specs: existingProduct.goodsInfoVo.specs,
             unit: existingProduct.goodsInfoVo.unit,
             actualWeight: existingProduct.goodsInfoVo.actualWeight
@@ -901,8 +922,8 @@ app.post('/api/sync-item', async (req, res) => {
             goodsAttrVal: existingProduct.goodsSubInfoVo.goodsAttrVal,
             memberPrice: good.membersPrice || null,
             goodsName: existingProduct.goodsSubInfoVo.goodsName,
-            categoryId: existingProduct.goodsSubInfoVo.categoryId,
-            categoryName: existingProduct.goodsSubInfoVo.categoryName,
+            categoryId: targetCategoryId,
+            categoryName: targetCategoryName,
             sortIndex: existingProduct.goodsSubInfoVo.sortIndex || 99999999
           }
         };
@@ -1107,7 +1128,7 @@ app.post('/api/sync-item', async (req, res) => {
                   goodsName: good.goodsName,
                   goodsCode: good.goodsCode || '',
                   factory: good.brand || copiedMerchantProduct.goodsInfoVo.factory || '',
-                  goodsCategoryId: copiedMerchantProduct.goodsInfoVo.goodsCategoryId || 1,
+                  goodsCategoryId: targetCategoryId,
                   specs: good.specsDesc || copiedMerchantProduct.goodsInfoVo.specs || '',
                   unit: copiedMerchantProduct.goodsInfoVo.unit || '瓶装',
                   actualWeight: copiedMerchantProduct.goodsInfoVo.actualWeight || null
@@ -1186,7 +1207,7 @@ app.post('/api/sync-item', async (req, res) => {
             goodsPic: good.goodsUrl || "",
             goodsCode: good.goodsCode || "",
             factory: good.brand || "",
-            goodsCategoryId: 1,
+            goodsCategoryId: targetCategoryId,
             specs: good.specsDesc || "",
             unit: "瓶装",
             actualWeight: null

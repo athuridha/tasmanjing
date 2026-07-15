@@ -129,6 +129,7 @@ export default function App() {
   const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0, success: 0, skipped: 0, error: 0 });
   const [syncResults, setSyncResults] = useState({}); // { [uuid]: { status, message } }
   const [syncLogs, setSyncLogs] = useState([]);
+  const [failedGoods, setFailedGoods] = useState([]);
   const [isDownloadingImages, setIsDownloadingImages] = useState(false);
   const [downloadMsg, setDownloadMsg] = useState('');
   const [imageDownloadTask, setImageDownloadTask] = useState(null);
@@ -371,6 +372,7 @@ export default function App() {
 
     setIsSyncing(true);
     setSyncLogs([]);
+    setFailedGoods([]);
     
     setSyncProgress({ current: 0, total, success: 0, skipped: 0, error: 0 });
     setSyncResults({});
@@ -436,19 +438,23 @@ export default function App() {
           }
         } else {
           errorCount++;
+          const errorMsg = data.error || (activeCatalogTab === 'target' ? 'Failed to update' : 'Failed to sync');
           setSyncResults(prev => ({
             ...prev,
-            [good.uuid]: { status: 'error', message: data.error || (activeCatalogTab === 'target' ? 'Failed to update' : 'Failed to sync') }
+            [good.uuid]: { status: 'error', message: errorMsg }
           }));
-          addLog(`↳ Error: Failed for "${good.goodsName}" - ${data.error}`);
+          addLog(`↳ Error: Failed for "${good.goodsName}" - ${errorMsg}`);
+          setFailedGoods(prev => [...prev, { ...good, error: errorMsg }]);
         }
       } catch (err) {
         errorCount++;
+        const errorMsg = err.message || 'Network or server error';
         setSyncResults(prev => ({
           ...prev,
           [good.uuid]: { status: 'error', message: 'Network or server error' }
         }));
         addLog(`↳ Error: Failed for "${good.goodsName}" - Network error`);
+        setFailedGoods(prev => [...prev, { ...good, error: 'Network error: ' + errorMsg }]);
       }
 
       setSyncProgress(prev => ({
@@ -592,6 +598,46 @@ export default function App() {
       newSelected.add(uuid);
     }
     setSelectedIds(newSelected);
+  };
+
+  const handleSelectLimit = (limit) => {
+    const topIds = filteredGoods.slice(0, limit).map(g => g.uuid);
+    setSelectedIds(new Set(topIds));
+    addLog(`Selected the top ${Math.min(limit, filteredGoods.length)} items for syncing.`);
+  };
+
+  const handleCopyFailedGoods = () => {
+    if (failedGoods.length === 0) return;
+    const header = "Name\tBarcode\tPrice\tCost\tCategory\tUnit\tError\n";
+    const rows = failedGoods.map(g => 
+      `"${g.goodsName || ''}"\t"${g.goodsCode || ''}"\t${g.goodsPrice || 0}\t${g.costPrice || 0}\t"${g.customName || ''}"\t"${g.specsDesc || ''}"\t"${g.error || ''}"`
+    ).join('\n');
+    navigator.clipboard.writeText(header + rows);
+    alert('Copied failed products list to clipboard in tab-separated (TSV) format. You can paste it directly into Excel or Google Sheets.');
+  };
+
+  const handleDownloadFailedCSV = () => {
+    if (failedGoods.length === 0) return;
+    const headers = ["Name", "Barcode", "Price", "Cost", "Category", "Unit", "Error"];
+    const rows = failedGoods.map(g => [
+      g.goodsName || '',
+      g.goodsCode || '',
+      g.goodsPrice || 0,
+      g.costPrice || 0,
+      g.customName || '',
+      g.specsDesc || '',
+      g.error || ''
+    ]);
+    const csvString = [headers.join(','), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))].join('\n');
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `failed_products_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   // Get unique categories list
@@ -1202,6 +1248,76 @@ export default function App() {
             </section>
           )}
 
+          {/* Failed Products Log */}
+          {failedGoods.length > 0 && (
+            <section className="liquid-glass rounded-3xl p-6 border border-white/5 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Warning className="w-5 h-5 text-rose-400 shrink-0" />
+                  <h3 className="text-base font-bold text-white">Log Produk Gagal ({failedGoods.length})</h3>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCopyFailedGoods}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white rounded-xl border border-white/5 text-xs font-semibold spring-transition active:scale-[0.98]"
+                  >
+                    <Copy size={14} />
+                    Copy TSV (Excel)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDownloadFailedCSV}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white rounded-xl border border-white/5 text-xs font-semibold spring-transition active:scale-[0.98]"
+                  >
+                    <DownloadSimple size={14} />
+                    Download CSV
+                  </button>
+                </div>
+              </div>
+              <p className="text-xs text-slate-400">
+                Produk berikut gagal disinkronkan secara otomatis. Anda dapat menyalin data di bawah atau mengunduh file untuk diinputkan secara manual ke target portal.
+              </p>
+              
+              <div className="border border-white/5 rounded-2xl overflow-hidden bg-white/1">
+                <div className="overflow-x-auto max-h-[300px] scrollbar-thin">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-white/5 bg-white/2 text-slate-400 font-semibold">
+                        <th className="py-3 px-4">Nama Produk</th>
+                        <th className="py-3 px-4">Barcode</th>
+                        <th className="py-3 px-4 text-right">Harga Jual</th>
+                        <th className="py-3 px-4 text-right">Harga Modal</th>
+                        <th className="py-3 px-4">Kategori</th>
+                        <th className="py-3 px-4">Satuan</th>
+                        <th className="py-3 px-4 text-rose-400">Detail Error</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {failedGoods.map((good, idx) => (
+                        <tr key={idx} className="hover:bg-white/1 transition-all duration-150">
+                          <td className="py-3 px-4 font-semibold text-slate-200">{good.goodsName}</td>
+                          <td className="py-3 px-4 font-mono text-slate-400">{good.goodsCode || '-'}</td>
+                          <td className="py-3 px-4 text-right font-mono text-slate-300">{good.goodsPrice}</td>
+                          <td className="py-3 px-4 text-right font-mono text-slate-300">{good.costPrice}</td>
+                          <td className="py-3 px-4">
+                            <span className="bg-white/5 border border-white/5 px-2 py-0.5 rounded text-[10px] text-slate-400 font-medium">
+                              {good.customName || 'General'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-slate-400">{good.specsDesc || '-'}</td>
+                          <td className="py-3 px-4 text-rose-400 font-mono text-[11px] max-w-[250px] truncate" title={good.error}>
+                            {good.error}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+          )}
+
           {/* Goods Catalog List */}
           <section className="liquid-glass rounded-3xl p-6 border border-white/5 space-y-6">
             {/* Catalog Tabs */}
@@ -1351,7 +1467,59 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              <div className="border border-white/5 rounded-2xl overflow-hidden bg-white/1">
+              <>
+                {activeCatalogTab === 'source' && filteredGoods.length > 0 && (
+                  <div className="flex flex-wrap items-center justify-between gap-3 bg-white/2 border border-white/5 rounded-2xl p-4 text-xs mb-4">
+                    <div className="flex items-center gap-2 text-slate-400">
+                      <span className="font-semibold text-slate-300">Pilih Cepat (Quick Select):</span>
+                      <span className="font-mono bg-white/5 px-2 py-0.5 rounded text-slate-300">{selectedIds.size}</span>
+                      <span>terpilih dari {filteredGoods.length} produk</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleSelectLimit(50)}
+                        className="px-3 py-1.5 bg-white/5 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/20 border border-white/5 text-slate-300 rounded-xl font-medium transition-all duration-150 active:scale-[0.98]"
+                      >
+                        Top 50
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectLimit(100)}
+                        className="px-3 py-1.5 bg-white/5 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/20 border border-white/5 text-slate-300 rounded-xl font-medium transition-all duration-150 active:scale-[0.98]"
+                      >
+                        Top 100
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectLimit(150)}
+                        className="px-3 py-1.5 bg-white/5 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/20 border border-white/5 text-slate-300 rounded-xl font-medium transition-all duration-150 active:scale-[0.98]"
+                      >
+                        Top 150
+                      </button>
+                      <span className="text-slate-700 mx-1">|</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const allIds = filteredGoods.map(g => g.uuid);
+                          setSelectedIds(new Set(allIds));
+                        }}
+                        className="px-3 py-1.5 bg-white/5 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/20 border border-white/5 text-slate-300 rounded-xl font-medium transition-all duration-150 active:scale-[0.98]"
+                      >
+                        Pilih Semua
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedIds(new Set())}
+                        className="px-3 py-1.5 bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-xl font-medium transition-all duration-150 active:scale-[0.98]"
+                      >
+                        Kosongkan
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="border border-white/5 rounded-2xl overflow-hidden bg-white/1">
                 <div className="overflow-x-auto max-h-[500px] scrollbar-thin">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
@@ -1485,7 +1653,8 @@ export default function App() {
                   </table>
                 </div>
               </div>
-            )}
+            </>
+          )}
           </section>
 
         </div>
