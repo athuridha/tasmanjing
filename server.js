@@ -17,6 +17,11 @@ const BASE_URL = 'https://www.hnzczy.cn/ms1';
 
 const activeDownloads = {};
 
+// Helper: Normalize name by converting to lowercase and stripping all whitespace
+function normalizeName(str) {
+  return str ? str.trim().toLowerCase().replace(/\s+/g, '') : '';
+}
+
 const SYSTEM_CATEGORIES = {
   'bread': 36777,
   'energy drink': 35432,
@@ -454,6 +459,22 @@ app.post('/api/goods', async (req, res) => {
   }
 
   try {
+    // Fetch custom categories to map cateUuid to its typeName
+    let categoryMap = {};
+    try {
+      const cats = await getCategories(token);
+      if (Array.isArray(cats)) {
+        cats.forEach(c => {
+          const uuid = c.cateUuid || c.uuid;
+          if (uuid) {
+            categoryMap[uuid] = c.typeName;
+          }
+        });
+      }
+    } catch (catErr) {
+      console.error('Failed to fetch categories for mapping:', catErr.message);
+    }
+
     do {
       const url = `${BASE_URL}/commcustomgoods/querycommcustomgoodslist?goodsTypeStr=2&pageSize=${pageSize}&pageNo=${pageNo}&cateUuid=&likeCode=&accout=&goodsStat=&feeStart=&feeEnd=`;
       const qauth = getQAuthorization();
@@ -469,7 +490,34 @@ app.post('/api/goods', async (req, res) => {
       
       if (response.data && response.data.result === 'true') {
         const goodsPage = response.data.data ? response.data.data.data : [];
-        allGoods = allGoods.concat(goodsPage);
+        if (goodsPage.length > 0) {
+          try {
+            fs.writeFileSync(path.join(__dirname, 'debug_goods.json'), JSON.stringify(goodsPage.slice(0, 5), null, 2));
+            console.log('Saved debug_goods.json successfully');
+          } catch (writeErr) {
+            console.error('Failed to write debug_goods.json:', writeErr.message);
+          }
+        }
+
+        // Map products to include customName and other normalized properties
+        const mappedPage = goodsPage.map(g => {
+          const catName = categoryMap[g.cateUuid] || g.customTypeName || g.cateName || g.typeName || g.customName || 'General';
+          return {
+            ...g,
+            uuid: g.uuid || g.goodsUuid,
+            goodsName: g.goodsName || '',
+            goodsCode: g.goodsCode || '',
+            goodsPrice: parseFloat(g.goodsPrice || 0),
+            costPrice: parseFloat(g.costPrice || 0),
+            membersPrice: parseFloat(g.membersPrice || 0),
+            customName: catName,
+            brand: g.brand || '',
+            specsDesc: g.specsDesc || '',
+            type: 'main'
+          };
+        });
+
+        allGoods = allGoods.concat(mappedPage);
         
         totalCount = response.data.pageBean ? response.data.pageBean.pageDataCount : 0;
         console.log(`Page ${pageNo} returned ${goodsPage.length} items. Total count reported: ${totalCount}`);
@@ -564,6 +612,59 @@ async function createCategory(token, typeName, machineUuid = '155') {
   }
 }
 
+// Helper: Query ITSPC custom categories
+async function getItspcCategories(token, userId) {
+  try {
+    const url = 'https://sv.hnzczy.cn/goods/categoryPlantf/userCategorylist';
+    const headers = {
+      'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`,
+      'Accept': 'application/json, text/plain, */*',
+      'User-Agent': 'Mozilla/5.0'
+    };
+    const params = {
+      pageNum: 1,
+      pageSize: 250,
+      ownerType: 1
+    };
+    if (userId) {
+      params.userId = userId;
+    }
+    const response = await axios.get(url, { headers, params });
+    if (response.data && response.data.code === 200) {
+      return response.data.rows || [];
+    }
+  } catch (err) {
+    console.error('Failed to fetch ITSPC custom categories:', err.message);
+  }
+  return [];
+}
+
+// Helper: Create ITSPC custom category
+async function createItspcCategory(token, categoryName, userId) {
+  try {
+    const url = 'https://sv.hnzczy.cn/goods/categoryPlantf';
+    const headers = {
+      'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json, text/plain, */*',
+      'User-Agent': 'Mozilla/5.0'
+    };
+    const payload = {
+      categoryName: categoryName,
+      parentId: 1,
+      ownerType: 1,
+      userId: userId || null
+    };
+    const response = await axios.post(url, payload, { headers });
+    if (response.data && response.data.code === 200) {
+      return response.data.data;
+    }
+  } catch (err) {
+    console.error(`Failed to create ITSPC custom category "${categoryName}":`, err.message);
+  }
+  return null;
+}
+
 
 // Helper: Upload product image to Grabotech
 async function uploadGrabotechImage(token, imageUrl) {
@@ -643,7 +744,7 @@ async function findProductInTarget(token, barcode, name, targetType = 'main') {
       }
     }
 
-    // 2. Try to search by name
+    // 2. Try to search by name (lenient whitespace-insensitive match)
     if (cleanName) {
       try {
         const payload = querystring.stringify({
@@ -655,7 +756,7 @@ async function findProductInTarget(token, barcode, name, targetType = 'main') {
         const response = await axios.post(url, payload, { headers });
         if (response.data) {
           const list = parseGrabotechGoodsHtml(response.data);
-          const matched = list.find(g => g.goodsName && g.goodsName.trim().toLowerCase() === cleanName);
+          const matched = list.find(g => g.goodsName && normalizeName(g.goodsName) === normalizeName(name));
           if (matched) return { ...matched, type: 'grabotech' };
         }
       } catch (err) {
@@ -687,8 +788,8 @@ async function findProductInTarget(token, barcode, name, targetType = 'main') {
             const sub = row.goodsSubInfoVo || {};
             return (
               (info.goodsCode && info.goodsCode.trim() === cleanBarcode) ||
-              (sub.goodsName && sub.goodsName.trim().toLowerCase() === cleanName) ||
-              (info.goodsName && info.goodsName.trim().toLowerCase() === cleanName)
+              (sub.goodsName && normalizeName(sub.goodsName) === normalizeName(name)) ||
+              (info.goodsName && normalizeName(info.goodsName) === normalizeName(name))
             );
           });
 
@@ -724,16 +825,15 @@ async function findProductInTarget(token, barcode, name, targetType = 'main') {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
   };
 
-  // 1. Try to search by name first
+  // 1. Try to search by name first (lenient match)
   if (cleanName) {
     const urlByName = `${BASE_URL}/commcustomgoods/querycommcustomgoodslist?goodsTypeStr=2&pageSize=100&pageNo=1&cateUuid=&likeCode=${encodeURIComponent(name.trim())}&accout=&goodsStat=&feeStart=&feeEnd=`;
     try {
       const response = await axios.get(urlByName, { headers });
       if (response.data && response.data.result === 'true') {
         const list = response.data.data ? response.data.data.data : [];
-        // Check if there is an exact name match (case-insensitive) or exact barcode match
         const matched = list.find(g => 
-          (g.goodsName && g.goodsName.trim().toLowerCase() === cleanName) ||
+          (g.goodsName && normalizeName(g.goodsName) === normalizeName(name)) ||
           (cleanBarcode && g.goodsCode && g.goodsCode.trim() === cleanBarcode)
         );
         if (matched) return matched;
@@ -752,7 +852,7 @@ async function findProductInTarget(token, barcode, name, targetType = 'main') {
         const list = response.data.data ? response.data.data.data : [];
         const matched = list.find(g => 
           (g.goodsCode && g.goodsCode.trim() === cleanBarcode) ||
-          (g.goodsName && g.goodsName.trim().toLowerCase() === cleanName)
+          (g.goodsName && normalizeName(g.goodsName) === normalizeName(name))
         );
         if (matched) return matched;
       }
@@ -772,35 +872,170 @@ app.post('/api/sync-item', async (req, res) => {
   }
 
   try {
+    // Resolve target category details beforehand
+    let targetCateUuid = "";
+    let targetCategoryId = 85; // Default for Grabotech/General
+    let targetCategoryName = "";
+    let targetMachineUuid = "";
+    let customCategoryId = null;
+    let customCategoryName = "";
+
+    if (targetType === 'main') {
+      const categoryName = (good.customName || 'General').trim();
+      const categoryKey = categoryName.toLowerCase();
+      targetMachineUuid = await getTargetMachineUuid(targetToken);
+      
+      console.log(`Checking custom categories for "${categoryName}" on target...`);
+      let categories = [];
+      try {
+        const fetchedCats = await getCategories(targetToken);
+        categories = Array.isArray(fetchedCats) ? fetchedCats : [];
+      } catch (err) {
+        console.error('Failed to fetch categories:', err.message);
+      }
+      
+      let matchedCategory = categories.find(c => 
+        c.typeName && c.typeName.trim().toLowerCase() === categoryKey
+      );
+
+      if (matchedCategory) {
+        targetCateUuid = matchedCategory.cateUuid || matchedCategory.uuid;
+      } else {
+        console.log(`Category "${categoryName}" not found in target custom categories. Creating it...`);
+        try {
+          await createCategory(targetToken, categoryName, targetMachineUuid);
+          const updatedCategories = await getCategories(targetToken);
+          const refetchedList = Array.isArray(updatedCategories) ? updatedCategories : [];
+          matchedCategory = refetchedList.find(c => 
+            c.typeName && c.typeName.trim().toLowerCase() === categoryKey
+          );
+          if (matchedCategory) {
+            targetCateUuid = matchedCategory.cateUuid || matchedCategory.uuid;
+          }
+        } catch (catErr) {
+          console.error(`Failed to create category "${categoryName}":`, catErr.message);
+        }
+
+        if (!targetCateUuid) {
+          if (SYSTEM_CATEGORIES[categoryKey]) {
+            targetCateUuid = SYSTEM_CATEGORIES[categoryKey];
+          }
+        }
+      }
+    } else if (targetType === 'itspc') {
+      const categoryName = (good.customName || 'General').trim();
+      const categoryKey = categoryName.toLowerCase();
+      targetCategoryId = 5537;
+      targetCategoryName = "อื่นๆ L (Non-Food & Drink)";
+
+      for (const [k, id] of Object.entries(ITSPC_SYSTEM_CATEGORIES)) {
+        if (categoryKey.includes(k)) {
+          targetCategoryId = id;
+          if (id === 5535) targetCategoryName = "Cake & Bakery";
+          else if (id === 5529) targetCategoryName = "Coffee&Tea L";
+          else if (id === 5531) targetCategoryName = "นม L (Milk/Soy Milk)";
+          else if (id === 5534) targetCategoryName = "ขนมขบเคี้ยว (Snacks)";
+          else if (id === 5543) targetCategoryName = "บ.สำเร็จรูป L (Ins.Noodle)";
+          else if (id === 5524) targetCategoryName = "น้ำแร่ OutS H (Mineral water)";
+          else if (id === 5525) targetCategoryName = "เครื่องดื่ม L (Beverages)";
+          else if (id === 5527) targetCategoryName = "น้ำอัดลม L (Soft Drink)";
+          else if (id === 5541) targetCategoryName = "เครื่องดื่มกำลัง L (EnergyD)";
+          break;
+        }
+      }
+
+      // Resolve Custom Category name and ID
+      customCategoryName = categoryName;
+      console.log(`Resolving ITSPC Custom Category for "${customCategoryName}"...`);
+      try {
+        const cats = await getItspcCategories(targetToken, targetUserUuid);
+        let matched = cats.find(c => c.categoryName && c.categoryName.trim().toLowerCase() === categoryKey);
+        if (matched) {
+          customCategoryId = matched.id;
+          console.log(`Found existing ITSPC custom category: "${customCategoryName}" -> ID: ${customCategoryId}`);
+        } else {
+          customCategoryId = null;
+          console.log(`ITSPC custom category "${customCategoryName}" not found. Setting categoryId to null for manual insertion.`);
+        }
+      } catch (err) {
+        console.error('Error resolving ITSPC custom category:', err.message);
+        customCategoryId = null;
+      }
+    } else if (targetType === 'grabotech') {
+      const categoryName = (good.customName || 'General').trim();
+      const categoryKey = categoryName.toLowerCase();
+      targetCategoryId = 85; // Default categories
+      for (const [k, id] of Object.entries(GRABOTECH_SYSTEM_CATEGORIES)) {
+        if (categoryKey.includes(k)) {
+          targetCategoryId = id;
+          break;
+        }
+      }
+    }
+
     // Check if product already exists in target
     console.log(`Checking if "${good.goodsName}" exists in target...`);
     const existingProduct = await findProductInTarget(targetToken, good.goodsCode, good.goodsName, targetType);
 
     // If product exists in target
     if (existingProduct) {
-      if (mode === 'copy') {
-        console.log(`Product "${good.goodsName}" (Barcode: ${good.goodsCode || 'none'}) already exists in target. Skipping (mode: copy).`);
-        return res.json({
-          success: true,
-          status: 'skipped',
-          message: 'Product already exists in target'
-        });
-      }
-
       // Check if price matches
       const isPriceMatch = 
         existingProduct.goodsPrice === good.goodsPrice &&
         existingProduct.costPrice === good.costPrice &&
         existingProduct.membersPrice === good.membersPrice;
 
-      if (isPriceMatch) {
-        console.log(`Prices already match for "${good.goodsName}" (${good.goodsPrice} / ${good.costPrice}).`);
+      // Check if category matches (both customCategory ID and system category ID must match for ITSPC)
+      const isCategoryMatch = targetType === 'main'
+        ? (String(existingProduct.cateUuid) === String(targetCateUuid))
+        : (targetType === 'itspc'
+          ? (existingProduct.goodsSubInfoVo && 
+             String(existingProduct.goodsSubInfoVo.categoryId) === String(customCategoryId) &&
+             existingProduct.goodsInfoVo && 
+             String(existingProduct.goodsInfoVo.goodsCategoryId) === String(targetCategoryId))
+          : true);
+
+      // Check if other details match (for copy mode check)
+      const isDetailsMatch = 
+        (existingProduct.goodsName || '').trim() === (good.goodsName || '').trim() &&
+        (existingProduct.goodsCode || '').trim() === (good.goodsCode || '').trim() &&
+        (existingProduct.brand || '').trim() === (good.brand || '').trim() &&
+        (existingProduct.specsDesc || '').trim() === (good.specsDesc || '').trim() &&
+        (existingProduct.goodsUrl || '').trim() === (good.goodsUrl || '').trim() &&
+        isCategoryMatch;
+
+      // Skip condition depending on mode:
+      if (mode === 'copy' && isDetailsMatch) {
+        console.log(`Details already match for "${good.goodsName}". Skipping (mode: copy).`);
+        return res.json({
+          success: true,
+          status: 'skipped',
+          message: 'Details already match'
+        });
+      }
+
+      if (mode === 'price' && isPriceMatch) {
+        console.log(`Prices already match for "${good.goodsName}". Skipping (mode: price).`);
         return res.json({
           success: true,
           status: 'skipped',
           message: 'Prices already match'
         });
       }
+
+      if (mode === 'both' && isPriceMatch && isCategoryMatch) {
+        console.log(`Prices and category already match for "${good.goodsName}". Skipping (mode: both).`);
+        return res.json({
+          success: true,
+          status: 'skipped',
+          message: 'Prices and category already match'
+        });
+      }
+
+      // Determine prices to apply based on mode
+      const applyCostPrice = mode === 'copy' ? existingProduct.costPrice : good.costPrice;
+      const applySalePrice = mode === 'copy' ? existingProduct.goodsPrice : good.goodsPrice;
+      const applyMemberPrice = mode === 'copy' ? existingProduct.membersPrice : (good.membersPrice || 0);
 
       // We need to update the price in the target account
       if (targetType === 'grabotech') {
@@ -809,16 +1044,6 @@ app.post('/api/sync-item', async (req, res) => {
         let finalImageUrl = existingProduct.goodsUrl || '';
         if (good.goodsUrl && good.goodsUrl !== existingProduct.goodsUrl) {
           finalImageUrl = await uploadGrabotechImage(targetToken, good.goodsUrl);
-        }
-
-        const categoryName = (good.customName || 'General').trim();
-        const categoryKey = categoryName.toLowerCase();
-        let targetCategoryId = 85; // Default categories
-        for (const [k, id] of Object.entries(GRABOTECH_SYSTEM_CATEGORIES)) {
-          if (categoryKey.includes(k)) {
-            targetCategoryId = id;
-            break;
-          }
         }
 
         const editUrl = 'https://admin.grabotech.com/goods/goodsinfo/edit.html';
@@ -836,8 +1061,8 @@ app.post('/api/sync-item', async (req, res) => {
           name: good.goodsName,
           enName: good.goodsName,
           unit: good.specsDesc || existingProduct.specsDesc || 'Bag',
-          salePrice: good.goodsPrice,
-          costPrice: good.costPrice,
+          salePrice: applySalePrice,
+          costPrice: applyCostPrice,
           qualityDay: 365,
           isDefault: 1,
           shapeCode: good.goodsCode || existingProduct.goodsCode || '',
@@ -876,54 +1101,33 @@ app.post('/api/sync-item', async (req, res) => {
           'User-Agent': 'Mozilla/5.0'
         };
 
-        const categoryName = (good.customName || 'General').trim();
-        const categoryKey = categoryName.toLowerCase();
-        let targetCategoryId = 5537;
-        let targetCategoryName = "อื่นๆ L (Non-Food & Drink)";
-
-        for (const [k, id] of Object.entries(ITSPC_SYSTEM_CATEGORIES)) {
-          if (categoryKey.includes(k)) {
-            targetCategoryId = id;
-            if (id === 5535) targetCategoryName = "Cake & Bakery";
-            else if (id === 5529) targetCategoryName = "Coffee&Tea L";
-            else if (id === 5531) targetCategoryName = "นม L (Milk/Soy Milk)";
-            else if (id === 5534) targetCategoryName = "ขนมขบเคี้ยว (Snacks)";
-            else if (id === 5543) targetCategoryName = "บ.สำเร็จรูป L (Ins.Noodle)";
-            else if (id === 5524) targetCategoryName = "น้ำแร่ OutS H (Mineral water)";
-            else if (id === 5525) targetCategoryName = "เครื่องดื่ม L (Beverages)";
-            else if (id === 5527) targetCategoryName = "น้ำอัดลม L (Soft Drink)";
-            else if (id === 5541) targetCategoryName = "เครื่องดื่มกำลัง L (EnergyD)";
-            break;
-          }
-        }
-
         const payload = {
           goodsInfoBo: {
             id: existingProduct.goodsInfoId,
-            goodsName: existingProduct.goodsInfoVo.goodsName,
-            goodsCode: existingProduct.goodsInfoVo.goodsCode,
-            factory: existingProduct.goodsInfoVo.factory,
+            goodsName: good.goodsName,
+            goodsCode: good.goodsCode || existingProduct.goodsInfoVo.goodsCode || '',
+            factory: good.brand || existingProduct.goodsInfoVo.factory || '',
             goodsCategoryId: targetCategoryId,
-            specs: existingProduct.goodsInfoVo.specs,
-            unit: existingProduct.goodsInfoVo.unit,
-            actualWeight: existingProduct.goodsInfoVo.actualWeight
+            specs: good.specsDesc || existingProduct.goodsInfoVo.specs || '',
+            unit: existingProduct.goodsInfoVo.unit || '瓶装',
+            actualWeight: existingProduct.goodsInfoVo.actualWeight || null
           },
           goodsSubInfoBo: {
             id: existingProduct.goodsSubInfoId,
             mainGoodsId: existingProduct.goodsInfoId,
-            goodsPic: existingProduct.goodsSubInfoVo.goodsPic,
-            qualityPeriod: existingProduct.goodsSubInfoVo.qualityPeriod,
-            qualityPeriodUnit: existingProduct.goodsSubInfoVo.qualityPeriodUnit,
-            costFee: good.costPrice,
-            salePrice: good.goodsPrice,
-            openServices: existingProduct.goodsSubInfoVo.openServices,
-            boxSpecs: existingProduct.goodsSubInfoVo.boxSpecs,
-            goodsDescription: existingProduct.goodsSubInfoVo.goodsDescription,
-            goodsAttrVal: existingProduct.goodsSubInfoVo.goodsAttrVal,
-            memberPrice: good.membersPrice || null,
-            goodsName: existingProduct.goodsSubInfoVo.goodsName,
-            categoryId: targetCategoryId,
-            categoryName: targetCategoryName,
+            goodsPic: good.goodsUrl || existingProduct.goodsSubInfoVo.goodsPic || '',
+            qualityPeriod: existingProduct.goodsSubInfoVo.qualityPeriod || null,
+            qualityPeriodUnit: existingProduct.goodsSubInfoVo.qualityPeriodUnit || null,
+            costFee: applyCostPrice,
+            salePrice: applySalePrice,
+            openServices: existingProduct.goodsSubInfoVo.openServices || 0,
+            boxSpecs: existingProduct.goodsSubInfoVo.boxSpecs || null,
+            goodsDescription: existingProduct.goodsSubInfoVo.goodsDescription || '',
+            goodsAttrVal: existingProduct.goodsSubInfoVo.goodsAttrVal || '',
+            memberPrice: applyMemberPrice || null,
+            goodsName: good.goodsName,
+            categoryId: customCategoryId,
+            categoryName: customCategoryName,
             sortIndex: existingProduct.goodsSubInfoVo.sortIndex || 99999999
           }
         };
@@ -953,9 +1157,16 @@ app.post('/api/sync-item', async (req, res) => {
 
         const payload = {
           ...existingProduct,
-          goodsPrice: good.goodsPrice,
-          costPrice: good.costPrice,
-          membersPrice: good.membersPrice || 0
+          cateUuid: targetCateUuid || existingProduct.cateUuid,
+          goodsName: (good.goodsName || '').trim(),
+          goodsCode: good.goodsCode || '',
+          brand: good.brand || '',
+          specsDesc: good.specsDesc || '',
+          goodsUrl: good.goodsUrl || '',
+          introduceUrl: good.introduceUrl || '',
+          goodsPrice: applySalePrice,
+          costPrice: applyCostPrice,
+          membersPrice: applyMemberPrice
         };
 
         const response = await axios.put(url, payload, { headers });
@@ -990,16 +1201,6 @@ app.post('/api/sync-item', async (req, res) => {
       let finalImageUrl = '';
       if (good.goodsUrl) {
         finalImageUrl = await uploadGrabotechImage(targetToken, good.goodsUrl);
-      }
-
-      const categoryName = (good.customName || 'General').trim();
-      const categoryKey = categoryName.toLowerCase();
-      let targetCategoryId = 85; // Default categories
-      for (const [k, id] of Object.entries(GRABOTECH_SYSTEM_CATEGORIES)) {
-        if (categoryKey.includes(k)) {
-          targetCategoryId = id;
-          break;
-        }
       }
 
       const createUrl = 'https://admin.grabotech.com/goods/goodsinfo/edit.html';
@@ -1068,12 +1269,11 @@ app.post('/api/sync-item', async (req, res) => {
           
           if (ptResponse.data && ptResponse.data.code === 200) {
             const rows = ptResponse.data.rows || [];
-            const cleanName = good.goodsName.trim().toLowerCase();
             const cleanBarcode = good.goodsCode ? good.goodsCode.trim() : '';
             
             platformProduct = rows.find(r => 
               (cleanBarcode && r.goodsCode && r.goodsCode.trim() === cleanBarcode) ||
-              (r.goodsName && r.goodsName.trim().toLowerCase() === cleanName)
+              (r.goodsName && normalizeName(r.goodsName) === normalizeName(good.goodsName))
             );
           }
         } catch (ptErr) {
@@ -1100,27 +1300,6 @@ app.post('/api/sync-item', async (req, res) => {
             if (copiedMerchantProduct) {
               console.log(`Retrieved IDs for copied product: InfoId=${copiedMerchantProduct.goodsInfoId}, SubId=${copiedMerchantProduct.goodsSubInfoId}. Updating details...`);
               
-              const categoryName = (good.customName || 'General').trim();
-              const categoryKey = categoryName.toLowerCase();
-              let targetCategoryId = 5537;
-              let targetCategoryName = "อื่นๆ L (Non-Food & Drink)";
-
-              for (const [k, id] of Object.entries(ITSPC_SYSTEM_CATEGORIES)) {
-                if (categoryKey.includes(k)) {
-                  targetCategoryId = id;
-                  if (id === 5535) targetCategoryName = "Cake & Bakery";
-                  else if (id === 5529) targetCategoryName = "Coffee&Tea L";
-                  else if (id === 5531) targetCategoryName = "นม L (Milk/Soy Milk)";
-                  else if (id === 5534) targetCategoryName = "ขนมขบเคี้ยว (Snacks)";
-                  else if (id === 5543) targetCategoryName = "บ.สำเร็จรูป L (Ins.Noodle)";
-                  else if (id === 5524) targetCategoryName = "น้ำแร่ OutS H (Mineral water)";
-                  else if (id === 5525) targetCategoryName = "เครื่องดื่ม L (Beverages)";
-                  else if (id === 5527) targetCategoryName = "น้ำอัดลม L (Soft Drink)";
-                  else if (id === 5541) targetCategoryName = "เครื่องดื่มกำลัง L (EnergyD)";
-                  break;
-                }
-              }
-
               const updateUrl = 'https://sv.hnzczy.cn/goods/info';
               const updatePayload = {
                 goodsInfoBo: {
@@ -1147,8 +1326,8 @@ app.post('/api/sync-item', async (req, res) => {
                   goodsAttrVal: copiedMerchantProduct.goodsSubInfoVo.goodsAttrVal || '',
                   memberPrice: good.membersPrice || null,
                   goodsName: good.goodsName,
-                  categoryId: targetCategoryId,
-                  categoryName: targetCategoryName,
+                  categoryId: customCategoryId,
+                  categoryName: customCategoryName,
                   sortIndex: copiedMerchantProduct.goodsSubInfoVo.sortIndex || 99999999
                 }
               };
@@ -1179,27 +1358,6 @@ app.post('/api/sync-item', async (req, res) => {
       console.log(`Product "${good.goodsName}" not found in Platform Goods Library. Creating from scratch...`);
       const insertUrl = 'https://sv.hnzczy.cn/goods/info';
       
-      const categoryName = (good.customName || 'General').trim();
-      const categoryKey = categoryName.toLowerCase();
-      let targetCategoryId = 5537;
-      let targetCategoryName = "อื่นๆ L (Non-Food & Drink)";
-
-      for (const [k, id] of Object.entries(ITSPC_SYSTEM_CATEGORIES)) {
-        if (categoryKey.includes(k)) {
-          targetCategoryId = id;
-          if (id === 5535) targetCategoryName = "Cake & Bakery";
-          else if (id === 5529) targetCategoryName = "Coffee&Tea L";
-          else if (id === 5531) targetCategoryName = "นม L (Milk/Soy Milk)";
-          else if (id === 5534) targetCategoryName = "ขนมขบเคี้ยว (Snacks)";
-          else if (id === 5543) targetCategoryName = "บ.สำเร็จรูป L (Ins.Noodle)";
-          else if (id === 5524) targetCategoryName = "น้ำแร่ OutS H (Mineral water)";
-          else if (id === 5525) targetCategoryName = "เครื่องดื่ม L (Beverages)";
-          else if (id === 5527) targetCategoryName = "น้ำอัดลม L (Soft Drink)";
-          else if (id === 5541) targetCategoryName = "เครื่องดื่มกำลัง L (EnergyD)";
-          break;
-        }
-      }
-
       const payload = [
         {
           goodsInfoBo: {
@@ -1224,8 +1382,8 @@ app.post('/api/sync-item', async (req, res) => {
             goodsAttrVal: "",
             memberPrice: good.membersPrice || null,
             goodsName: good.goodsName,
-            categoryId: targetCategoryId,
-            categoryName: targetCategoryName,
+            categoryId: customCategoryId,
+            categoryName: customCategoryName,
             sortIndex: 99999999
           }
         }
@@ -1241,64 +1399,6 @@ app.post('/api/sync-item', async (req, res) => {
         });
       } else {
         throw new Error(response.data ? response.data.msg : 'Failed to create product in ITSPC from scratch');
-      }
-    }
-
-    // Step 1: Match or Create Category in Main Portal
-    console.log(`Syncing "${good.goodsName}" - Checking categories...`);
-    const categoryName = (good.customName || 'General').trim();
-    const categoryKey = categoryName.toLowerCase();
-    let targetCateUuid = "";
-
-    // Fetch the target machine UUID dynamically
-    const targetMachineUuid = await getTargetMachineUuid(targetToken);
-    console.log(`Target machine UUID resolved: ${targetMachineUuid}`);
-
-    console.log(`Checking custom categories for "${categoryName}" on target...`);
-    let categories = [];
-    try {
-      const fetchedCats = await getCategories(targetToken);
-      categories = Array.isArray(fetchedCats) ? fetchedCats : [];
-    } catch (err) {
-      console.error('Failed to fetch categories:', err.message);
-    }
-    console.log(`Target custom categories list size: ${categories.length}`);
-    
-    let matchedCategory = categories.find(c => 
-      c.typeName && c.typeName.trim().toLowerCase() === categoryKey
-    );
-
-    if (matchedCategory) {
-      targetCateUuid = matchedCategory.cateUuid || matchedCategory.uuid;
-      console.log(`Found custom category match: "${categoryName}" -> UUID: ${targetCateUuid}`);
-    } else {
-      console.log(`Category "${categoryName}" not found in target custom categories. Creating it...`);
-      try {
-        await createCategory(targetToken, categoryName, targetMachineUuid);
-        // Refetch categories to get the newly created uuid
-        const updatedCategories = await getCategories(targetToken);
-        const refetchedList = Array.isArray(updatedCategories) ? updatedCategories : [];
-        matchedCategory = refetchedList.find(c => 
-          c.typeName && c.typeName.trim().toLowerCase() === categoryKey
-        );
-        if (matchedCategory) {
-          targetCateUuid = matchedCategory.cateUuid || matchedCategory.uuid;
-          console.log(`Created category: "${categoryName}" -> UUID: ${targetCateUuid}`);
-        } else {
-          console.log(`Category created but not found in refetched list.`);
-        }
-      } catch (catErr) {
-        console.error(`Failed to create category "${categoryName}":`, catErr.message);
-      }
-
-      // Last resort fallback to global SYSTEM_CATEGORIES if we still don't have targetCateUuid
-      if (!targetCateUuid) {
-        if (SYSTEM_CATEGORIES[categoryKey]) {
-          targetCateUuid = SYSTEM_CATEGORIES[categoryKey];
-          console.log(`Fallback: Using global system category match for "${categoryName}" -> UUID: ${targetCateUuid}`);
-        } else {
-          console.log(`No custom or system category fallback found. Proceeding with empty category UUID.`);
-        }
       }
     }
 
