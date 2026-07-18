@@ -783,7 +783,7 @@ export default function App() {
                         : 'text-slate-400 hover:text-white border border-transparent'
                     }`}
                   >
-                    Main Portal
+                    VM Putih
                   </button>
                   <button
                     type="button"
@@ -795,7 +795,7 @@ export default function App() {
                         : 'text-slate-400 hover:text-white border border-transparent'
                     }`}
                   >
-                    ITSPC
+                    VM Oren
                   </button>
                   <button
                     type="button"
@@ -927,7 +927,7 @@ export default function App() {
                         : 'text-slate-400 hover:text-white border border-transparent'
                     }`}
                   >
-                    Main Portal
+                    VM Putih
                   </button>
                   <button
                     type="button"
@@ -939,7 +939,7 @@ export default function App() {
                         : 'text-slate-400 hover:text-white border border-transparent'
                     }`}
                   >
-                    ITSPC
+                    VM Oren
                   </button>
                   <button
                     type="button"
@@ -1757,7 +1757,7 @@ export default function App() {
                         ? 'bg-sky-500/10 text-sky-400 border-sky-500/20'
                         : 'bg-teal-500/10 text-teal-400 border-teal-500/20'
                   }`}>
-                    {targetType === 'grabotech' ? 'Grabotech' : targetType === 'itspc' ? 'ITSPC Portal' : 'Main Portal'}
+                    {targetType === 'grabotech' ? 'Grabotech' : targetType === 'itspc' ? 'VM Oren' : 'VM Putih'}
                   </span>
                 </div>
 
