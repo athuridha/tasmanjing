@@ -777,25 +777,13 @@ export default function App() {
                     type="button"
                     disabled={sourceToken !== ''}
                     onClick={() => setSourceType('main')}
-                    className={`flex-1 min-w-[70px] py-2 rounded-lg text-[10px] font-semibold transition-all duration-200 ${
+                    className={`flex-1 min-w-[70px] py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
                       sourceType === 'main' 
                         ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
                         : 'text-slate-400 hover:text-white border border-transparent'
                     }`}
                   >
-                    Main (ms1)
-                  </button>
-                  <button
-                    type="button"
-                    disabled={sourceToken !== ''}
-                    onClick={() => setSourceType('main_ms3')}
-                    className={`flex-1 min-w-[70px] py-2 rounded-lg text-[10px] font-semibold transition-all duration-200 ${
-                      sourceType === 'main_ms3' 
-                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-                        : 'text-slate-400 hover:text-white border border-transparent'
-                    }`}
-                  >
-                    Main (ms3)
+                    Main Portal
                   </button>
                   <button
                     type="button"
@@ -933,25 +921,13 @@ export default function App() {
                     type="button"
                     disabled={targetToken !== ''}
                     onClick={() => setTargetType('main')}
-                    className={`flex-1 min-w-[70px] py-2 rounded-lg text-[10px] font-semibold transition-all duration-200 ${
+                    className={`flex-1 min-w-[70px] py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
                       targetType === 'main' 
                         ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' 
                         : 'text-slate-400 hover:text-white border border-transparent'
                     }`}
                   >
-                    Main (ms1)
-                  </button>
-                  <button
-                    type="button"
-                    disabled={targetToken !== ''}
-                    onClick={() => setTargetType('main_ms3')}
-                    className={`flex-1 min-w-[70px] py-2 rounded-lg text-[10px] font-semibold transition-all duration-200 ${
-                      targetType === 'main_ms3' 
-                        ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' 
-                        : 'text-slate-400 hover:text-white border border-transparent'
-                    }`}
-                  >
-                    Main (ms3)
+                    Main Portal
                   </button>
                   <button
                     type="button"
@@ -1779,11 +1755,9 @@ export default function App() {
                       ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
                       : targetType === 'itspc'
                         ? 'bg-sky-500/10 text-sky-400 border-sky-500/20'
-                        : targetType === 'main_ms3'
-                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                          : 'bg-teal-500/10 text-teal-400 border-teal-500/20'
+                        : 'bg-teal-500/10 text-teal-400 border-teal-500/20'
                   }`}>
-                    {targetType === 'grabotech' ? 'Grabotech' : targetType === 'itspc' ? 'ITSPC Portal' : targetType === 'main_ms3' ? 'Main Portal (ms3)' : 'Main Portal (ms1)'}
+                    {targetType === 'grabotech' ? 'Grabotech' : targetType === 'itspc' ? 'ITSPC Portal' : 'Main Portal'}
                   </span>
                 </div>
 
