@@ -772,36 +772,48 @@ export default function App() {
             <form onSubmit={handleLoginSource} className="space-y-4">
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-medium text-slate-400">Source Portal Type</label>
-                <div className="flex bg-[#12141d]/80 p-1 border border-white/5 rounded-xl gap-1">
+                <div className="flex flex-wrap bg-[#12141d]/80 p-1 border border-white/5 rounded-xl gap-1">
                   <button
                     type="button"
                     disabled={sourceToken !== ''}
                     onClick={() => setSourceType('main')}
-                    className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                    className={`flex-1 min-w-[70px] py-2 rounded-lg text-[10px] font-semibold transition-all duration-200 ${
                       sourceType === 'main' 
                         ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
                         : 'text-slate-400 hover:text-white border border-transparent'
                     }`}
                   >
-                    Main Portal
+                    Main (ms1)
+                  </button>
+                  <button
+                    type="button"
+                    disabled={sourceToken !== ''}
+                    onClick={() => setSourceType('main_ms3')}
+                    className={`flex-1 min-w-[70px] py-2 rounded-lg text-[10px] font-semibold transition-all duration-200 ${
+                      sourceType === 'main_ms3' 
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                        : 'text-slate-400 hover:text-white border border-transparent'
+                    }`}
+                  >
+                    Main (ms3)
                   </button>
                   <button
                     type="button"
                     disabled={sourceToken !== ''}
                     onClick={() => setSourceType('itspc')}
-                    className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                    className={`flex-1 min-w-[70px] py-2 rounded-lg text-[10px] font-semibold transition-all duration-200 ${
                       sourceType === 'itspc' 
                         ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
                         : 'text-slate-400 hover:text-white border border-transparent'
                     }`}
                   >
-                    ITSPC Portal
+                    ITSPC
                   </button>
                   <button
                     type="button"
                     disabled={sourceToken !== ''}
                     onClick={() => setSourceType('grabotech')}
-                    className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                    className={`flex-1 min-w-[70px] py-2 rounded-lg text-[10px] font-semibold transition-all duration-200 ${
                       sourceType === 'grabotech' 
                         ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
                         : 'text-slate-400 hover:text-white border border-transparent'
@@ -916,36 +928,48 @@ export default function App() {
             <form onSubmit={handleLoginTarget} className="space-y-4">
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-medium text-slate-400">Target Portal Type</label>
-                <div className="flex bg-[#12141d]/80 p-1 border border-white/5 rounded-xl gap-1">
+                <div className="flex flex-wrap bg-[#12141d]/80 p-1 border border-white/5 rounded-xl gap-1">
                   <button
                     type="button"
                     disabled={targetToken !== ''}
                     onClick={() => setTargetType('main')}
-                    className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                    className={`flex-1 min-w-[70px] py-2 rounded-lg text-[10px] font-semibold transition-all duration-200 ${
                       targetType === 'main' 
                         ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' 
                         : 'text-slate-400 hover:text-white border border-transparent'
                     }`}
                   >
-                    Main Portal
+                    Main (ms1)
+                  </button>
+                  <button
+                    type="button"
+                    disabled={targetToken !== ''}
+                    onClick={() => setTargetType('main_ms3')}
+                    className={`flex-1 min-w-[70px] py-2 rounded-lg text-[10px] font-semibold transition-all duration-200 ${
+                      targetType === 'main_ms3' 
+                        ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' 
+                        : 'text-slate-400 hover:text-white border border-transparent'
+                    }`}
+                  >
+                    Main (ms3)
                   </button>
                   <button
                     type="button"
                     disabled={targetToken !== ''}
                     onClick={() => setTargetType('itspc')}
-                    className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                    className={`flex-1 min-w-[70px] py-2 rounded-lg text-[10px] font-semibold transition-all duration-200 ${
                       targetType === 'itspc' 
                         ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' 
                         : 'text-slate-400 hover:text-white border border-transparent'
                     }`}
                   >
-                    ITSPC Portal
+                    ITSPC
                   </button>
                   <button
                     type="button"
                     disabled={targetToken !== ''}
                     onClick={() => setTargetType('grabotech')}
-                    className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                    className={`flex-1 min-w-[70px] py-2 rounded-lg text-[10px] font-semibold transition-all duration-200 ${
                       targetType === 'grabotech' 
                         ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' 
                         : 'text-slate-400 hover:text-white border border-transparent'
@@ -1755,9 +1779,11 @@ export default function App() {
                       ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
                       : targetType === 'itspc'
                         ? 'bg-sky-500/10 text-sky-400 border-sky-500/20'
-                        : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                        : targetType === 'main_ms3'
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                          : 'bg-teal-500/10 text-teal-400 border-teal-500/20'
                   }`}>
-                    {targetType === 'grabotech' ? 'Grabotech' : targetType === 'itspc' ? 'ITSPC Portal' : 'Main Portal'}
+                    {targetType === 'grabotech' ? 'Grabotech' : targetType === 'itspc' ? 'ITSPC Portal' : targetType === 'main_ms3' ? 'Main Portal (ms3)' : 'Main Portal (ms1)'}
                   </span>
                 </div>
 
