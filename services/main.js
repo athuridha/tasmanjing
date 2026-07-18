@@ -39,24 +39,7 @@ const SYSTEM_CATEGORIES = {
 
 // Helper: Get target account machine UUID dynamically
 async function getTargetMachineUuid(token, type = 'main') {
-  try {
-    const baseUrl = getBaseUrl(type);
-    const url = `${baseUrl}/machineinfo/querymachineinfo?pageNum=1&pageSize=10`;
-    const qauth = common.getQAuthorization();
-    const headers = {
-      'authorization': token,
-      'qauthorization': qauth,
-      'Accept': 'application/json, text/plain, */*',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    };
-    const response = await axios.get(url, { headers });
-    if (response.data && response.data.result === 'true' && response.data.data && response.data.data.length > 0) {
-      return response.data.data[0].uuid || '155';
-    }
-  } catch (err) {
-    console.error('Error fetching target machine info:', err.message);
-  }
-  return '155'; // Fallback
+  return '155'; // Always use universal machine '155' to match D:\amar\automation logic
 }
 
 // Helper: Query custom categories of an account
@@ -184,7 +167,7 @@ async function findProductInTarget(token, barcode, name, targetType = 'main') {
       if (response.data && response.data.result === 'true') {
         const list = response.data.data ? response.data.data.data : [];
         const matched = list.find(g => 
-          (g.goodsName && common.normalizeName(g.goodsName) === common.normalizeName(name)) ||
+          (g.goodsName && g.goodsName.trim().toLowerCase() === cleanName) ||
           (cleanBarcode && g.goodsCode && g.goodsCode.trim() === cleanBarcode)
         );
         if (matched) return matched;
@@ -203,7 +186,7 @@ async function findProductInTarget(token, barcode, name, targetType = 'main') {
         const list = response.data.data ? response.data.data.data : [];
         const matched = list.find(g => 
           (g.goodsCode && g.goodsCode.trim() === cleanBarcode) ||
-          (g.goodsName && common.normalizeName(g.goodsName) === common.normalizeName(name))
+          (g.goodsName && g.goodsName.trim().toLowerCase() === cleanName)
         );
         if (matched) return matched;
       }
