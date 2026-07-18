@@ -13,7 +13,7 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 const PORT = process.env.PORT || 5000;
-const BASE_URL = 'https://www.hnzczy.cn/ms1';
+const BASE_URL = 'https://www.hnzczy.cn/ms3';
 
 const activeDownloads = {};
 
@@ -24,16 +24,25 @@ function normalizeName(str) {
 
 const SYSTEM_CATEGORIES = {
   'bread': 36777,
+  'breads': 36777,
   'energy drink': 35432,
+  'energy drinks': 35432,
   'noodles': 35431,
+  'noodle': 35431,
   'isotonic water': 35430,
   'health drink': 35429,
+  'health drinks': 35429,
   'milk': 35428,
+  'milks': 35428,
   'tea': 35427,
+  'teas': 35427,
   'mineral water': 35426,
   'carbon drink': 35425,
+  'carbon drinks': 35425,
   'coffee': 35424,
-  'snacks': 35260
+  'coffees': 35424,
+  'snacks': 35260,
+  'snack': 35260
 };
 
 const ITSPC_SYSTEM_CATEGORIES = {
