@@ -733,7 +733,7 @@ export default function App() {
               <Database size={24} />
             </div>
             <div>
-              <h1 className="text-lg font-bold tracking-tight text-white leading-none">HUIYUN</h1>
+              <h1 className="text-lg font-bold tracking-tight text-white leading-none">IT AUTOMATION</h1>
               <p className="text-xs text-slate-500 mt-1">Goods Sync Automation</p>
             </div>
           </div>
