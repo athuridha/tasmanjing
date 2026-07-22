@@ -783,7 +783,7 @@ export default function App() {
                         : 'text-slate-400 hover:text-white border border-transparent'
                     }`}
                   >
-                    VM Putih
+                    VM Oren
                   </button>
                   <button
                     type="button"
@@ -795,7 +795,7 @@ export default function App() {
                         : 'text-slate-400 hover:text-white border border-transparent'
                     }`}
                   >
-                    VM Oren
+                    VM Putih
                   </button>
                   <button
                     type="button"
