@@ -1,210 +1,207 @@
-const axios = require('axios');
+const puppeteer = require('puppeteer-core');
 const common = require('./common');
 
+// Chrome executable path
+const CHROME_PATH = 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe';
+
 const GRABOTECH_SYSTEM_CATEGORIES = {
-  'bread': 137, // Food
-  'bakery': 137, // Food
-  'coffee': 131, // Drinks
-  'tea': 131, // Drinks
-  'milk': 131, // Drinks
-  'yogurt': 131, // Drinks
-  'snacks': 138, // Snack
-  'snack': 138,
-  'noodles': 137, // Food
-  'mineral water': 131, // Drinks
-  'drinks': 131, // Drinks
-  'beverages': 131, // Drinks
-  'soft drink': 129, // SODA
-  'soda': 129, // SODA
-  'cola': 128, // Coca Cola
-  'coke': 128,
-  'carbon': 127, // Carbonated Drinks
-  'other': 85
+  'bread': 137, 'bakery': 137, 'coffee': 131, 'tea': 131,
+  'milk': 131, 'yogurt': 131, 'snacks': 138, 'snack': 138,
+  'noodles': 137, 'mineral water': 131, 'drinks': 131, 'beverages': 131,
+  'soft drink': 129, 'soda': 129, 'cola': 128, 'coke': 128,
+  'carbon': 127, 'other': 85
 };
 
-// Helper: Parse Grabotech goods HTML table response
-function parseGrabotechGoodsHtml(html) {
-  const trRegex = /<tr[^>]*id="goods_(\d+)"[^>]*>([\s\S]*?)<\/tr>/gi;
-  const tdRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
-  const imgRegex = /<img[^>]*src="([^"]+)"/i;
-  const goods = [];
-  
-  let trMatch;
-  while ((trMatch = trRegex.exec(html)) !== null) {
-    const goodsId = trMatch[1];
-    const tdsHtml = trMatch[2];
-    
-    const tds = [];
-    let tdMatch;
-    while ((tdMatch = tdRegex.exec(tdsHtml)) !== null) {
-      tds.push(tdMatch[1].trim());
-    }
-    
-    if (tds.length >= 11) {
-      const name = tds[2] || tds[3] || '';
-      const imgMatch = tds[4].match(imgRegex);
-      const imageUrl = imgMatch ? imgMatch[1] : '';
-      const unit = tds[5] || '';
-      const price = parseFloat(tds[6]) || 0;
-      const cost = parseFloat(tds[7]) || 0;
-      const barcode = tds[10] || '';
-      
-      goods.push({
-        uuid: goodsId,
-        goodsName: name,
-        goodsCode: barcode,
-        goodsPrice: price,
-        costPrice: cost,
-        membersPrice: 0,
-        customName: 'General',
-        goodsUrl: imageUrl,
-        brand: '',
-        specsDesc: unit,
-        type: 'grabotech'
-      });
-    }
+// ─── PERSISTENT BROWSER SESSION MANAGER ─────────────────────────────
+// Keeps a single browser instance alive across captcha → login → fetch
+const sessions = {}; // { sessionId: { browser, page, createdAt } }
+
+async function launchBrowser() {
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    const chromium = require('@sparticuz/chromium');
+    return puppeteer.launch({
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
+    });
   }
-  return goods;
+
+  return puppeteer.launch({
+    headless: 'new',
+    executablePath: CHROME_PATH,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox', 
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--window-size=1400,900'
+    ]
+  });
 }
 
-// Helper: Upload product image to Grabotech
-async function uploadGrabotechImage(token, imageUrl) {
-  if (!imageUrl) return '';
-  try {
-    console.log(`Downloading image for Grabotech upload: ${imageUrl}`);
-    const imgResponse = await axios.get(imageUrl, {
-      responseType: 'arraybuffer',
-      headers: {
-        'User-Agent': 'Mozilla/5.0'
+// Cleanup stale sessions (older than 10 minutes)
+function cleanupSessions() {
+  const now = Date.now();
+  for (const [id, session] of Object.entries(sessions)) {
+    if (now - session.createdAt > 10 * 60 * 1000) {
+      console.log(`[Grabotech] Cleaning up stale session ${id}`);
+      session.browser.close().catch(() => {});
+      delete sessions[id];
+    }
+  }
+}
+
+// ─── CAPTCHA: Launch browser, navigate to login, screenshot captcha ─
+
+async function getCaptcha() {
+  cleanupSessions();
+
+  const sessionId = `grab_${Date.now()}`;
+  console.log(`[Grabotech] Launching Chrome for captcha (session: ${sessionId})...`);
+
+  const browser = await launchBrowser();
+  const page = await browser.newPage();
+  await page.setViewport({ width: 1400, height: 900 });
+
+  console.log('[Grabotech] Navigating to login page...');
+  await page.goto('https://admin.grabotech.com/index/index/login.html', {
+    waitUntil: 'networkidle2',
+    timeout: 20000
+  });
+
+  await new Promise(r => setTimeout(r, 1000));
+
+  // Find and screenshot the captcha image (class="verify")
+  const captchaImg = await page.$('img.verify') || await page.$('img[src*="captcha"]');
+  let captchaBase64 = '';
+
+  if (captchaImg) {
+    const imgBuffer = await captchaImg.screenshot({ encoding: 'base64' });
+    captchaBase64 = `data:image/png;base64,${imgBuffer}`;
+    console.log('[Grabotech] Captcha image captured.');
+  } else {
+    // Fallback: try to find any img near the verification input
+    const allImgs = await page.$$('img');
+    for (const img of allImgs) {
+      const src = await page.evaluate(el => el.src, img);
+      if (src && src.includes('captcha')) {
+        const imgBuffer = await img.screenshot({ encoding: 'base64' });
+        captchaBase64 = `data:image/png;base64,${imgBuffer}`;
+        console.log('[Grabotech] Captcha found via fallback.');
+        break;
       }
-    });
-
-    let filename = 'image.png';
-    const contentType = imgResponse.headers['content-type'] || 'image/png';
-    if (contentType.includes('jpeg') || contentType.includes('jpg')) filename = 'image.jpg';
-    else if (contentType.includes('gif')) filename = 'image.gif';
-    else if (contentType.includes('webp')) filename = 'image.webp';
-
-    const blob = new Blob([imgResponse.data], { type: contentType });
-    const form = new FormData();
-    form.append('pic1', blob, filename);
-
-    const uploadUrl = 'https://admin.grabotech.com/goods/goodsinfo/uploadImage';
-    const response = await fetch(uploadUrl, {
-      method: 'POST',
-      headers: {
-        'Cookie': `PHPSESSID=${token}`,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      },
-      body: form
-    });
-
-    const resData = await response.json();
-    console.log('Grabotech upload image response:', resData);
-    if (resData) {
-      return resData.url || (resData.data && resData.data.src) || (resData.data && resData.data.url) || '';
     }
-  } catch (err) {
-    console.error('Failed to upload image to Grabotech:', err.message);
   }
-  return '';
-}
 
-// Helper: Check if product exists in target
-async function findProductInTarget(token, barcode, name) {
-  const cleanName = name ? name.trim().toLowerCase() : '';
-  const cleanBarcode = barcode ? barcode.trim() : '';
+  if (!captchaBase64) {
+    // Last resort: screenshot the captcha area by evaluating page
+    console.log('[Grabotech] Trying to screenshot captcha by position...');
+    const captchaEl = await page.evaluateHandle(() => {
+      // Find the image next to the verification input
+      const vifInput = document.querySelector('input[name="vifCode"]') || document.querySelector('input[placeholder*="验证"]') || document.querySelector('input[placeholder*="erification"]');
+      if (vifInput) {
+        const parent = vifInput.parentElement;
+        const img = parent ? parent.querySelector('img') : null;
+        return img;
+      }
+      return null;
+    });
 
-  const url = 'https://admin.grabotech.com/goods/goodsinfo/getlist.html';
-  const headers = {
-    'Content-Type': 'application/x-www-form-urlencoded',
-    'Cookie': `PHPSESSID=${token}`,
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    if (captchaEl && captchaEl.asElement()) {
+      const imgBuffer = await captchaEl.asElement().screenshot({ encoding: 'base64' });
+      captchaBase64 = `data:image/png;base64,${imgBuffer}`;
+      console.log('[Grabotech] Captcha captured from input sibling.');
+    }
+  }
+
+  // Store the session (browser + page stay open!)
+  sessions[sessionId] = {
+    browser,
+    page,
+    createdAt: Date.now()
   };
 
-  const querystring = require('querystring');
-  
-  if (cleanBarcode) {
-    try {
-      const payload = querystring.stringify({
-        page: 1,
-        pageSize: 100,
-        navigationId: 24,
-        name: cleanBarcode
-      });
-      const response = await axios.post(url, payload, { headers });
-      if (response.data) {
-        const list = parseGrabotechGoodsHtml(response.data);
-        const matched = list.find(g => g.goodsCode && g.goodsCode.trim() === cleanBarcode);
-        if (matched) return { ...matched, type: 'grabotech' };
-      }
-    } catch (err) {
-      console.error('Error querying Grabotech target goods by barcode:', err.message);
-    }
-  }
-
-  if (cleanName) {
-    try {
-      const payload = querystring.stringify({
-        page: 1,
-        pageSize: 100,
-        navigationId: 24,
-        name: name.trim()
-      });
-      const response = await axios.post(url, payload, { headers });
-      if (response.data) {
-        const list = parseGrabotechGoodsHtml(response.data);
-        const matched = list.find(g => g.goodsName && common.normalizeName(g.goodsName) === common.normalizeName(name));
-        if (matched) return { ...matched, type: 'grabotech' };
-      }
-    } catch (err) {
-      console.error('Error querying Grabotech target goods by name:', err.message);
-    }
-  }
-
-  return null;
+  return {
+    success: true,
+    captchaUrl: captchaBase64,
+    phpSessionId: sessionId // We use our sessionId as the token key
+  };
 }
 
-// 1. Login
+// ─── 1. LOGIN ───────────────────────────────────────────────────────
+
 async function login(userAccount, userPwd, sessionCookie, vifCode) {
   if (!vifCode) {
     const err = new Error('Verification code is required for Grabotech');
     err.status = 400;
     throw err;
   }
-  if (!sessionCookie) {
-    const err = new Error('Session cookie is missing. Please reload captcha.');
+
+  // sessionCookie here is our sessionId key from getCaptcha()
+  const session = sessions[sessionCookie];
+  if (!session || !session.page) {
+    const err = new Error('Browser session expired. Please reload captcha.');
     err.status = 400;
     throw err;
   }
 
-  const url = 'https://admin.grabotech.com/index/index/login.html';
-  const headers = {
-    'Content-Type': 'application/x-www-form-urlencoded',
-    'Cookie': `PHPSESSID=${sessionCookie}`,
-    'Accept': 'application/json, text/javascript, */*; q=0.01',
-    'X-Requested-With': 'XMLHttpRequest',
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-  };
+  const { page } = session;
 
-  const querystring = require('querystring');
-  const payload = querystring.stringify({
-    userName: userAccount.trim(),
-    password: userPwd.trim(),
-    vifCode: vifCode.trim(),
-    remember: ''
-  });
+  try {
+    console.log('[Grabotech] Filling login form in Puppeteer...');
 
-  const response = await axios.post(url, payload, { headers });
-  console.log('Grabotech login response:', response.data);
-  
-  const resData = response.data || {};
-  const isSuccess = resData.status === 1 || resData.status === 1001 || resData.code === 200 || resData.success === true || (typeof resData === 'string' && resData.includes('成功'));
+    // Clear and fill username (#userName, type="tel")
+    await page.evaluate(() => { document.querySelector('#userName').value = ''; });
+    await page.type('#userName', userAccount.trim(), { delay: 50 });
+    console.log('[Grabotech] Username filled.');
 
-  if (isSuccess || resData.status === 1 || resData.status === 1001) {
+    // Clear and fill password (#password)
+    await page.evaluate(() => { document.querySelector('#password').value = ''; });
+    await page.type('#password', userPwd.trim(), { delay: 50 });
+    console.log('[Grabotech] Password filled.');
+
+    // Clear and fill captcha (#vifCode)
+    await page.evaluate(() => { document.querySelector('#vifCode').value = ''; });
+    await page.type('#vifCode', vifCode.trim(), { delay: 50 });
+    console.log('[Grabotech] Captcha filled.');
+
+    // Click login button (a.loginBtn with onclick="login()")
+    console.log('[Grabotech] Clicking login button...');
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 15000 }).catch(() => {}),
+      page.evaluate(() => {
+        // Call the login() function directly (defined in the page)
+        if (typeof login === 'function') { login(); return; }
+        // Fallback: click the anchor element
+        const btn = document.querySelector('a.loginBtn') || document.querySelector('.loginBtn');
+        if (btn) btn.click();
+      })
+    ]);
+
+    await new Promise(r => setTimeout(r, 3000));
+
+    const currentUrl = page.url();
+    console.log('[Grabotech] Post-login URL:', currentUrl);
+
+    // Check if login succeeded (not on login page anymore)
+    if (currentUrl.includes('login')) {
+      // Check for error messages on page
+      const errorMsg = await page.evaluate(() => {
+        const alert = document.querySelector('.layui-layer-content, .error-msg, .alert-danger');
+        return alert ? alert.textContent.trim() : '';
+      });
+      const err = new Error(errorMsg || 'Login failed. Wrong captcha or credentials.');
+      err.status = 400;
+      throw err;
+    }
+
+    console.log('[Grabotech] Login successful! Browser session authenticated.');
+
+    // Return the sessionId as token (browser stays open for fetchGoods)
     return {
       success: true,
-      token: sessionCookie,
+      token: sessionCookie, // Our session key
       user: {
         userAccount: userAccount,
         contactMan: userAccount,
@@ -212,216 +209,542 @@ async function login(userAccount, userPwd, sessionCookie, vifCode) {
         type: 'grabotech'
       }
     };
-  } else {
-    const err = new Error(resData.info || resData.msg || 'Login failed. Please check credentials/captcha.');
-    err.status = 400;
+  } catch (err) {
+    console.error('[Grabotech] Login error:', err.message);
     throw err;
   }
 }
 
-// 2. Fetch Goods
+// ─── 2. FETCH GOODS ─────────────────────────────────────────────────
+
 async function fetchGoods(token) {
-  let allGoods = [];
-  let pageNo = 1;
-  const pageSize = 100;
-  let totalCount = 0;
+  let session = sessions[token];
 
-  do {
-    const url = 'https://admin.grabotech.com/goods/goodsinfo/getlist.html';
-    const headers = {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Cookie': `PHPSESSID=${token}`,
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+  if (!session || !session.page) {
+    console.log('[Grabotech] No existing session found. Cannot fetch goods without login.');
+    throw new Error('Session expired. Please login again.');
+  }
+
+  const { page, browser } = session;
+
+  try {
+    // Strategy: Navigate to the page, intercept the Layui table AJAX request,
+    // then manually paginate through all pages by re-triggering the table load.
+
+    let allGoods = [];
+    let totalCount = 0;
+
+    // Set up request interception to capture the getlist AJAX call
+    const goodsUrl = 'https://admin.grabotech.com/goods/Goodsinfo/index?navigationId=24&operatorAppId=NTA=';
+    console.log('[Grabotech] Navigating to Product Management:', goodsUrl);
+
+    // Intercept XHR responses
+    let capturedData = null;
+    const responseHandler = async (response) => {
+      const url = response.url();
+      if (url.includes('getlist') || url.includes('Getlist') || url.includes('getList')) {
+        try {
+          const json = await response.json();
+          capturedData = json;
+        } catch (e) {
+          // Not JSON, ignore
+        }
+      }
     };
+    page.on('response', responseHandler);
 
-    const querystring = require('querystring');
-    const payload = querystring.stringify({
-      page: pageNo,
-      pageSize: pageSize,
-      navigationId: 24,
-      name: '',
-      status: '',
-      goodsTypeId: '',
-      source: '',
-      retailId: ''
+    await page.goto(goodsUrl, { waitUntil: 'networkidle2', timeout: 25000 });
+    await new Promise(r => setTimeout(r, 4000));
+
+    const currentUrl = page.url();
+    console.log('[Grabotech] Current URL:', currentUrl);
+
+    if (currentUrl.includes('login')) {
+      page.off('response', responseHandler);
+      throw new Error('Session expired. Redirected to login page.');
+    }
+
+    // Check if we captured data from the initial page load
+    if (capturedData) {
+      console.log('[Grabotech] Intercepted AJAX data! Keys:', Object.keys(capturedData));
+      const items = capturedData.data || capturedData.rows || capturedData.list || [];
+      totalCount = capturedData.count || capturedData.total || capturedData.recordsTotal || items.length;
+      console.log(`[Grabotech] Total count from API: ${totalCount}, Page 1 items: ${items.length}`);
+
+      for (const item of items) {
+        allGoods.push(parseGrabotechItem(item));
+      }
+    }
+
+    // If no data was intercepted via AJAX, fall back to DOM scraping
+    if (allGoods.length === 0) {
+      console.log('[Grabotech] No AJAX data intercepted, falling back to DOM scraping...');
+      const domGoods = await scrapeTableDOM(page);
+      allGoods = domGoods;
+    }
+
+    // Read total pages / items from DOM if available (e.g., "Total 7 Pages 124 Items Data")
+    const domTotalInfo = await page.evaluate(() => {
+      const bodyText = document.body.innerText || '';
+      const match = bodyText.match(/Total\s+(\d+)\s+Pages\s+(\d+)\s+Items/i) || bodyText.match(/(\d+)\s+Pages/i);
+      if (match) {
+        return {
+          totalPages: parseInt(match[1]) || 1,
+          totalItems: match[2] ? parseInt(match[2]) : 0
+        };
+      }
+      return null;
     });
 
-    console.log(`Fetching Grabotech goods page ${pageNo} (pageSize: ${pageSize})...`);
-    const response = await axios.post(url, payload, { headers });
+    console.log('[Grabotech] DOM Total Info:', domTotalInfo);
 
-    if (response.data) {
-      const html = response.data;
-      const pageGoods = parseGrabotechGoodsHtml(html);
-      allGoods = allGoods.concat(pageGoods);
+    // Loop through pages
+    let pageNum = 1;
+    const maxPages = (domTotalInfo && domTotalInfo.totalPages > 1) ? domTotalInfo.totalPages : 20;
 
-      const totalMatch = html.match(/Total\s+(\d+)\s+Pages/i);
-      const totalPages = totalMatch ? parseInt(totalMatch[1]) : 1;
-      
-      const itemsMatch = html.match(/Total\s+\d+\s+Pages\s+(\d+)\s+Items/i);
-      totalCount = itemsMatch ? parseInt(itemsMatch[1]) : allGoods.length;
+    console.log(`[Grabotech] Starting pagination (Max pages: ${maxPages})...`);
 
-      if (pageGoods.length === 0 || pageNo >= totalPages || allGoods.length >= totalCount) {
+    while (pageNum < maxPages) {
+      // Click next page button
+      const clickedNext = await page.evaluate(() => {
+        // 1. Try Ace Admin "Next page" title link
+        let nextBtn = document.querySelector('a[title="Next page"]') || document.querySelector('a[title="Next Page"]');
+        if (nextBtn && !nextBtn.classList.contains('disabled') && !nextBtn.parentElement.classList.contains('disabled')) {
+          nextBtn.click();
+          return 'title_next';
+        }
+
+        // 2. Try icon fa-angle-right inside anchor
+        const icon = document.querySelector('i.fa-angle-right, i.ace-icon.fa-angle-right');
+        if (icon) {
+          const anchor = icon.closest('a');
+          if (anchor && !anchor.classList.contains('disabled') && !anchor.parentElement.classList.contains('disabled')) {
+            anchor.click();
+            return 'icon_angle_right';
+          }
+        }
+
+        // 3. Try Layui next page button
+        const layuiNext = document.querySelector('.layui-laypage-next:not(.layui-disabled)');
+        if (layuiNext) {
+          layuiNext.click();
+          return 'layui_next';
+        }
+
+        // 4. Try page number link directly
+        const pageLinks = Array.from(document.querySelectorAll('.pagination a, .layui-laypage a'));
+        for (const link of pageLinks) {
+          if (link.textContent.trim() === String(pageNum + 1)) {
+            if (!link.classList.contains('disabled') && !link.parentElement.classList.contains('active')) {
+              link.click();
+              return 'page_number';
+            }
+          }
+        }
+
+        return null;
+      });
+
+      if (!clickedNext) {
+        console.log(`[Grabotech] Next page button not found at page ${pageNum}. Reached last page.`);
         break;
       }
-      pageNo++;
-    } else {
-      throw new Error('Failed to query Grabotech goods (empty response)');
-    }
-  } while (allGoods.length < totalCount);
 
+      console.log(`[Grabotech] Clicked next page (${clickedNext}) for page ${pageNum + 1}...`);
+      pageNum++;
+
+      await new Promise(r => setTimeout(r, 2500));
+
+      // Capture goods from DOM for this page
+      const pageGoods = await scrapeTableDOM(page);
+      console.log(`[Grabotech] Page ${pageNum}: found ${pageGoods.length} products`);
+
+      if (pageGoods.length === 0) {
+        console.log(`[Grabotech] Page ${pageNum} returned 0 products. Stopping.`);
+        break;
+      }
+
+      // Add to list, avoiding duplicates
+      for (const item of pageGoods) {
+        if (!allGoods.some(g => g.uuid === item.uuid)) {
+          allGoods.push(item);
+        }
+      }
+    }
+
+    page.off('response', responseHandler);
+    console.log(`[Grabotech] Total unique goods scraped: ${allGoods.length}`);
+    console.log(`[Grabotech] Total goods scraped: ${allGoods.length}`);
+
+    return {
+      success: true,
+      total: allGoods.length,
+      goods: allGoods
+    };
+  } catch (err) {
+    console.error('[Grabotech] Fetch goods error:', err.message);
+    throw err;
+  }
+}
+
+// Parse a single item from Grabotech AJAX JSON response
+function parseGrabotechItem(item) {
+  const brandName = (item.brand || item.brandName || '').trim();
   return {
-    success: true,
-    total: allGoods.length,
-    goods: allGoods
+    uuid: String(item.id || item.goods_id || item.goodsId || ''),
+    goodsName: (item.name || item.goods_name || item.goodsName || '').trim(),
+    goodsCode: (item.shapeCode || item.shape_code || item.barcode || item.thirdGoodsCode || '').trim(),
+    goodsPrice: parseFloat(item.salePrice || item.sale_price || item.price || 0),
+    costPrice: parseFloat(item.costPrice || item.cost_price || item.cost || 0),
+    membersPrice: 0,
+    customName: brandName || 'General',
+    goodsUrl: (item.picURL || item.pic_url || item.imageUrl || item.image || '').trim(),
+    brand: brandName,
+    specsDesc: (item.unit || item.specification || item.packagingType || '').trim(),
+    type: 'grabotech'
   };
 }
 
-// 3. Sync Item
-async function syncItem(targetToken, good, mode) {
-  const categoryName = (good.customName || 'General').trim();
-  const categoryKey = categoryName.toLowerCase();
-  let targetCategoryId = 85; // Default categories
-  for (const [k, id] of Object.entries(GRABOTECH_SYSTEM_CATEGORIES)) {
-    if (categoryKey.includes(k)) {
-      targetCategoryId = id;
-      break;
-    }
-  }
+// Scrape products from the visible DOM table
+async function scrapeTableDOM(page) {
+  return page.evaluate(() => {
+    const goods = [];
+    const rows = document.querySelectorAll('table tbody tr');
 
-  // Check if product already exists in target
-  console.log(`Checking if "${good.goodsName}" exists in target...`);
-  const existingProduct = await findProductInTarget(targetToken, good.goodsCode, good.goodsName);
+    for (const tr of rows) {
+      const tds = Array.from(tr.querySelectorAll('td'));
+      if (tds.length < 6) continue;
 
-  if (existingProduct) {
-    const isPriceMatch = 
-      existingProduct.goodsPrice === good.goodsPrice &&
-      existingProduct.costPrice === good.costPrice &&
-      existingProduct.membersPrice === good.membersPrice;
+      const texts = tds.map(td => (td.textContent || '').trim());
 
-    const isDetailsMatch = 
-      (existingProduct.goodsName || '').trim() === (good.goodsName || '').trim() &&
-      (existingProduct.goodsCode || '').trim() === (good.goodsCode || '').trim() &&
-      (existingProduct.brand || '').trim() === (good.brand || '').trim() &&
-      (existingProduct.specsDesc || '').trim() === (good.specsDesc || '').trim() &&
-      (existingProduct.goodsUrl || '').trim() === (good.goodsUrl || '').trim();
+      const idText = texts[2] || '';
+      if (!/^\d+$/.test(idText)) continue;
 
-    if (mode === 'copy' && isDetailsMatch) {
-      return { success: true, status: 'skipped', message: 'Details already match' };
-    }
-    if (mode === 'price' && isPriceMatch) {
-      return { success: true, status: 'skipped', message: 'Prices already match' };
-    }
-    if (mode === 'both' && isPriceMatch) {
-      return { success: true, status: 'skipped', message: 'Prices and category already match' };
-    }
+      const nameEl = tds[3];
+      let name = '';
+      if (nameEl) {
+        const titleEl = nameEl.querySelector('[title]');
+        name = titleEl ? titleEl.getAttribute('title') : nameEl.textContent.trim();
+      }
+      if (!name) continue;
 
-    const applyCostPrice = mode === 'copy' ? existingProduct.costPrice : good.costPrice;
-    const applySalePrice = mode === 'copy' ? existingProduct.goodsPrice : good.goodsPrice;
+      const imgEl = tr.querySelector('img');
+      const imageUrl = imgEl ? (imgEl.getAttribute('data-src') || imgEl.src || '') : '';
+      const productId = texts[7] || '';
+      const barcode = texts[8] || productId;
+      const unit = texts[9] || '';
+      const price = parseFloat(texts[10]) || 0;
+      const cost = parseFloat(texts[11]) || 0;
+      const brand = (texts[14] || '').trim();
 
-    console.log(`Updating Grabotech product details for "${good.goodsName}"...`);
-    
-    let finalImageUrl = existingProduct.goodsUrl || '';
-    if (good.goodsUrl && good.goodsUrl !== existingProduct.goodsUrl) {
-      finalImageUrl = await uploadGrabotechImage(targetToken, good.goodsUrl);
+      goods.push({
+        uuid: idText,
+        goodsName: name.trim(),
+        goodsCode: barcode.trim(),
+        goodsPrice: price,
+        costPrice: cost,
+        membersPrice: 0,
+        customName: brand || 'General',
+        goodsUrl: imageUrl,
+        brand: brand,
+        specsDesc: unit.trim(),
+        type: 'grabotech'
+      });
     }
 
-    const editUrl = 'https://admin.grabotech.com/goods/goodsinfo/edit.html';
-    const headers = {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Cookie': `PHPSESSID=${targetToken}`,
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    };
+    return goods;
+  });
+}
 
-    const querystring = require('querystring');
-    const payload = querystring.stringify({
-      goodsId: existingProduct.uuid,
-      goodsTypeId: targetCategoryId,
-      addgoodsTypeId: targetCategoryId,
-      name: good.goodsName,
-      enName: good.goodsName,
-      unit: good.specsDesc || existingProduct.specsDesc || 'Bag',
-      salePrice: applySalePrice,
-      costPrice: applyCostPrice,
-      qualityDay: 365,
-      isDefault: 1,
-      shapeCode: good.goodsCode || existingProduct.goodsCode || '',
-      heating: 0,
-      goodsBrandId: 0,
-      saleLimit: 0,
-      lenth: 0,
-      thirdGoodsCode: good.goodsCode || '',
-      specification: good.specsDesc || '',
-      picURL: finalImageUrl,
-      picURLs: '',
-      imageNamesAll: '',
-      nameAllToUp: ''
+// ─── 3. UPLOAD IMAGE ────────────────────────────────────────────────
+
+async function uploadGrabotechImage(token, imageUrl) {
+  if (!imageUrl) return '';
+  const axios = require('axios');
+  const FormDataNode = require('form-data');
+
+  const session = sessions[token];
+  if (!session || !session.page) return '';
+
+  try {
+    console.log(`[Grabotech] Downloading image for upload: ${imageUrl}`);
+    const imgResponse = await axios.get(imageUrl, {
+      responseType: 'arraybuffer',
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
     });
 
-    const response = await axios.post(editUrl, payload, { headers });
-    if (response.data && (response.data.code === 200 || response.data.status === 1 || (typeof response.data === 'string' && response.data.includes('成功')))) {
-      return { success: true, status: 'synced', message: `Updated price to ${good.goodsPrice}` };
-    } else {
-      const errMsg = response.data ? (response.data.msg || response.data.info) : 'Failed to update Grabotech product';
-      throw new Error(errMsg);
+    let filename = 'image.png';
+    const ct = imgResponse.headers['content-type'] || 'image/png';
+    if (ct.includes('jpeg') || ct.includes('jpg')) filename = 'image.jpg';
+    else if (ct.includes('webp')) filename = 'image.webp';
+    else if (ct.includes('gif')) filename = 'image.gif';
+
+    const cookies = await session.page.cookies();
+    const cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+
+    const form = new FormDataNode();
+    form.append('file', Buffer.from(imgResponse.data), {
+      filename: filename,
+      contentType: ct
+    });
+    form.append('pic1', Buffer.from(imgResponse.data), {
+      filename: filename,
+      contentType: ct
+    });
+
+    const response = await axios.post('https://admin.grabotech.com/goods/Goodsinfo/uploadImage', form, {
+      headers: {
+        ...form.getHeaders(),
+        'Cookie': cookieHeader,
+        'X-Requested-With': 'XMLHttpRequest',
+        'Referer': 'https://admin.grabotech.com/goods/Goodsinfo/index?navigationId=24&operatorAppId=NTA=',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+      },
+      validateStatus: () => true
+    });
+
+    console.log('[Grabotech] Image upload response:', response.data);
+    const resData = response.data || {};
+    return resData.path || resData.name || resData.url || (resData.data && resData.data.src) || (resData.data && resData.data.url) || '';
+  } catch (err) {
+    console.error('[Grabotech] Upload image error:', err.message);
+  }
+  return '';
+}
+
+// ─── 4. SYNC ITEM ───────────────────────────────────────────────────
+
+async function syncItem(targetToken, good, mode) {
+  let session = sessions[targetToken];
+  let ownsBrowser = false;
+  let browser, page;
+
+  if (session && session.page) {
+    page = session.page;
+    browser = session.browser;
+  } else {
+    console.log('[Grabotech] Launching new Chrome browser for syncItem...');
+    browser = await launchBrowser();
+    ownsBrowser = true;
+    page = await browser.newPage();
+    await page.setViewport({ width: 1400, height: 900 });
+    await setSessionCookie(page, targetToken);
+  }
+
+  const categoryName = (good.customName || 'General').trim().toLowerCase();
+  let targetCategoryId = 85;
+  for (const [k, id] of Object.entries(GRABOTECH_SYSTEM_CATEGORIES)) {
+    if (categoryName.includes(k)) { targetCategoryId = id; break; }
+  }
+
+  try {
+    // Navigate to product management if not already there
+    const currentUrl = page.url();
+    if (!currentUrl.includes('Goodsinfo')) {
+      console.log('[Grabotech] Navigating to Product Management page...');
+      await page.goto('https://admin.grabotech.com/goods/Goodsinfo/index?navigationId=24&operatorAppId=NTA=', {
+        waitUntil: 'networkidle2', timeout: 25000
+      });
+      await new Promise(r => setTimeout(r, 2000));
+    }
+
+    // Check if product already exists on target Grabotech page (duplicate prevention)
+    const alreadyExists = await page.evaluate((targetName, targetCode) => {
+      const rows = document.querySelectorAll('table tbody tr');
+      for (const tr of rows) {
+        const tds = Array.from(tr.querySelectorAll('td'));
+        if (tds.length >= 4) {
+          const nameEl = tds[3];
+          const titleEl = nameEl ? nameEl.querySelector('[title]') : null;
+          const rowName = titleEl ? titleEl.getAttribute('title') : (tds[3] ? tds[3].textContent.trim() : '');
+          const rowBarcode = tds[8] ? tds[8].textContent.trim() : '';
+
+          if (rowName && rowName.trim().toLowerCase() === targetName.trim().toLowerCase()) {
+            return { exists: true, matchedBy: 'name', name: rowName };
+          }
+          if (targetCode && rowBarcode && rowBarcode.trim() === targetCode.trim()) {
+            return { exists: true, matchedBy: 'barcode', name: rowName };
+          }
+        }
+      }
+      return { exists: false };
+    }, good.goodsName, good.goodsCode);
+
+    if (alreadyExists && alreadyExists.exists) {
+      console.log(`[Grabotech] Product "${good.goodsName}" already exists in Grabotech (matched by ${alreadyExists.matchedBy}). Skipping duplicate.`);
+      return {
+        success: true,
+        status: 'skipped',
+        message: `Product "${good.goodsName}" already exists in Grabotech (duplicate skipped)`
+      };
+    }
+
+    // Click Add button to open modal
+    console.log(`[Grabotech] Opening Add form modal for "${good.goodsName}"...`);
+    const openedModal = await page.evaluate(() => {
+      if (typeof addNewOwnGoods === 'function') {
+        addNewOwnGoods();
+        return 'addNewOwnGoods()';
+      }
+      const addBtn = document.querySelector('a[onclick*="addNewOwnGoods"]') || document.querySelector('a.btn-info');
+      if (addBtn) {
+        addBtn.click();
+        return 'click_addBtn';
+      }
+      return false;
+    });
+
+    console.log('[Grabotech] Add modal triggered via:', openedModal);
+    await new Promise(r => setTimeout(r, 2500));
+
+    // Upload image directly inside Chromium browser context & fill form
+    console.log(`[Grabotech] Filling form inputs & uploading image for "${good.goodsName}"...`);
+    const fillResult = await page.evaluate(async (item, imgUrl, catId) => {
+      function setVal(selectors, val) {
+        if (val === undefined || val === null) return;
+        const selList = Array.isArray(selectors) ? selectors : [selectors];
+        for (const s of selList) {
+          const el = document.querySelector(s);
+          if (el) {
+            el.value = String(val);
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            return true;
+          }
+        }
+        return false;
+      }
+
+      // Fill basic inputs
+      const filledName = setVal(['#name', 'input[name="name"]'], item.goodsName || '');
+      setVal(['#enName', 'input[name="enName"]'], item.goodsName || '');
+      setVal(['#unit', 'input[name="unit"]'], 'Kemasan');
+      setVal(['#salePrice', 'input[name="salePrice"]'], item.goodsPrice || 0);
+      setVal(['#costPrice', 'input[name="costPrice"]'], item.costPrice || 0);
+      setVal(['#shapeCode', 'input[name="shapeCode"]', 'input[name="goodsCode"]'], item.goodsCode || '');
+      setVal(['#thirdGoodsCode', 'input[name="thirdGoodsCode"]'], item.goodsCode || '');
+      setVal(['#specification', 'input[name="specification"]'], item.specsDesc || '');
+      setVal(['#qualityDay', 'input[name="qualityDay"]'], '365');
+
+      // Set category select dropdown
+      const catSelect = document.querySelector('select[name="goodsTypeId"], #goodsTypeId, select[name="addgoodsTypeId"]');
+      if (catSelect) {
+        catSelect.value = String(catId);
+        catSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+
+      // Upload image inside Chromium context
+      let uploadedPicUrl = '';
+      if (imgUrl) {
+        try {
+          console.log('Fetching image in browser:', imgUrl);
+          const imgRes = await fetch(imgUrl);
+          if (imgRes.ok) {
+            const blob = await imgRes.blob();
+            const file = new File([blob], 'product_image.jpg', { type: blob.type || 'image/jpeg' });
+            
+            const form = new FormData();
+            form.append('file', file);
+            form.append('pic1', file);
+
+            const uploadRes = await fetch('/goods/Goodsinfo/uploadImage', {
+              method: 'POST',
+              headers: { 'X-Requested-With': 'XMLHttpRequest' },
+              body: form
+            });
+
+            if (uploadRes.ok) {
+              const uploadJson = await uploadRes.json();
+              console.log('In-browser upload JSON:', uploadJson);
+              uploadedPicUrl = uploadJson.path || uploadJson.name || uploadJson.url || (uploadJson.data && uploadJson.data.src) || (uploadJson.data && uploadJson.data.url) || '';
+              if (uploadedPicUrl) {
+                setVal(['#picURL', 'input[name="picURL"]', 'input[name="pic"]'], uploadedPicUrl);
+                // Also try setting image preview src if available
+                const previewImgs = document.querySelectorAll('img[src*="Format"], .preview-img, #picURLPreview');
+                for (const img of previewImgs) {
+                  img.src = uploadedPicUrl;
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.error('In-browser image upload failed:', e);
+        }
+      }
+
+      return { filledName, uploadedPicUrl };
+    }, good, good.goodsUrl, targetCategoryId);
+
+    console.log('[Grabotech] Form filled & image uploaded result:', fillResult);
+
+    // Submit form by calling save() or clicking modal Save button
+    console.log('[Grabotech] Submitting form (calling save())...');
+    const submitResult = await page.evaluate(() => {
+      // 1. Try calling save() directly
+      if (typeof save === 'function') {
+        save();
+        return 'save_func';
+      }
+      // 2. Try clicking modal primary / save button
+      const btns = Array.from(document.querySelectorAll('.modal-footer button, .modal-footer a, button, a.btn'));
+      for (const btn of btns) {
+        const txt = btn.textContent.trim().toLowerCase();
+        if (txt === 'save' || txt === 'submit' || txt === 'confirm' || (btn.getAttribute('onclick') || '').includes('save')) {
+          btn.click();
+          return 'btn_click_' + txt;
+        }
+      }
+      return 'none';
+    });
+
+    console.log('[Grabotech] Submit result:', submitResult);
+    await new Promise(r => setTimeout(r, 3000));
+
+    // Check for success notification dialog and click "Confirm"
+    await page.evaluate(() => {
+      const confirmBtns = Array.from(document.querySelectorAll('.modal button, .bootbox button, .layui-layer-btn a, button'));
+      for (const btn of confirmBtns) {
+        const txt = btn.textContent.trim().toLowerCase();
+        if (txt === 'confirm' || txt === 'ok' || txt === '确定') {
+          btn.click();
+          break;
+        }
+      }
+    });
+
+    await new Promise(r => setTimeout(r, 1500));
+
+    console.log(`[Grabotech] Product "${good.goodsName}" synced successfully.`);
+    return {
+      success: true,
+      status: 'synced',
+      message: `Created "${good.goodsName}" in Grabotech`
+    };
+  } catch (err) {
+    console.error(`[Grabotech] Sync error for "${good.goodsName}":`, err.message);
+    throw new Error(`Failed to sync "${good.goodsName}": ${err.message}`);
+  } finally {
+    if (ownsBrowser && browser) {
+      await browser.close().catch(() => {});
     }
   }
+}
 
-  if (mode === 'price') {
-    return { success: true, status: 'skipped', message: 'Product does not exist in target' };
-  }
+// ─── CLEANUP ────────────────────────────────────────────────────────
 
-  console.log(`Product "${good.goodsName}" does not exist in Grabotech target. Creating new product...`);
-  
-  let finalImageUrl = '';
-  if (good.goodsUrl) {
-    finalImageUrl = await uploadGrabotechImage(targetToken, good.goodsUrl);
-  }
-
-  const createUrl = 'https://admin.grabotech.com/goods/goodsinfo/edit.html';
-  const headers = {
-    'Content-Type': 'application/x-www-form-urlencoded',
-    'Cookie': `PHPSESSID=${targetToken}`,
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-  };
-
-  const querystring = require('querystring');
-  const payload = querystring.stringify({
-    goodsId: '', // Empty for new
-    goodsTypeId: targetCategoryId,
-    addgoodsTypeId: targetCategoryId,
-    name: good.goodsName,
-    enName: good.goodsName,
-    unit: good.specsDesc || 'Bag',
-    salePrice: good.goodsPrice,
-    costPrice: good.costPrice,
-    qualityDay: 365,
-    isDefault: 1,
-    shapeCode: good.goodsCode || '',
-    heating: 0,
-    goodsBrandId: 0,
-    saleLimit: 0,
-    lenth: 0,
-    thirdGoodsCode: good.goodsCode || '',
-    specification: good.specsDesc || '',
-    picURL: finalImageUrl,
-    picURLs: '',
-    imageNamesAll: '',
-    nameAllToUp: ''
-  });
-
-  const response = await axios.post(createUrl, payload, { headers });
-  if (response.data && (response.data.code === 200 || response.data.status === 1 || (typeof response.data === 'string' && response.data.includes('成功')))) {
-    return { success: true, status: 'synced', message: 'Created new product in Grabotech' };
-  } else {
-    const errMsg = response.data ? (response.data.msg || response.data.info) : 'Failed to create Grabotech product';
-    throw new Error(errMsg);
+function closeSession(token) {
+  const session = sessions[token];
+  if (session) {
+    session.browser.close().catch(() => {});
+    delete sessions[token];
   }
 }
 
 module.exports = {
+  getCaptcha,
   login,
   fetchGoods,
   syncItem,
   uploadGrabotechImage,
-  parseGrabotechGoodsHtml
+  closeSession
 };

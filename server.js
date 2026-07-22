@@ -19,33 +19,11 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 const PORT = process.env.PORT || 5000;
 const activeDownloads = {};
 
-// Grabotech Captcha endpoint
+// Grabotech Captcha endpoint (via Puppeteer persistent browser)
 app.get('/api/grabotech-captcha', async (req, res) => {
   try {
-    const response = await axios.get('https://admin.grabotech.com/captcha.html', {
-      responseType: 'arraybuffer',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      }
-    });
-
-    let phpSessionId = '';
-    const cookies = response.headers['set-cookie'] || [];
-    for (const cookie of cookies) {
-      if (cookie.includes('PHPSESSID=')) {
-        phpSessionId = cookie.split('PHPSESSID=')[1].split(';')[0];
-        break;
-      }
-    }
-
-    const base64Image = Buffer.from(response.data, 'binary').toString('base64');
-    const mimeType = response.headers['content-type'] || 'image/png';
-
-    return res.json({
-      success: true,
-      captchaUrl: `data:${mimeType};base64,${base64Image}`,
-      phpSessionId: phpSessionId
-    });
+    const result = await grabotechService.getCaptcha();
+    return res.json(result);
   } catch (err) {
     console.error('Failed to fetch Grabotech captcha:', err.message);
     return res.status(500).json({ success: false, error: err.message });
