@@ -162,6 +162,9 @@ export default function App() {
   const [excelErrorMsg, setExcelErrorMsg] = useState('');
   const [excelFilterStatus, setExcelFilterStatus] = useState('ALL');
   const [excelCheckedUuids, setExcelCheckedUuids] = useState(new Set());
+  const [enableFuzzyMatch, setEnableFuzzyMatch] = useState(true);
+  const [excelFuzzyThreshold, setExcelFuzzyThreshold] = useState(0.6);
+  const [excelUpdateTarget, setExcelUpdateTarget] = useState('both'); // 'both', 'cost_only', 'sale_only'
 
   // Auto-scroll Log Console
   useEffect(() => {
@@ -597,21 +600,82 @@ export default function App() {
     if (excelWorkbook) parseSheetData(excelWorkbook, sheetName);
   };
 
+  // --- FUZZY / SIMILAR MATCHING HELPER FUNCTIONS ---
+  const normalizeStr = (str) => {
+    if (!str) return '';
+    return String(str)
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  const levenshteinDistance = (a, b) => {
+    const matrix = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+    for (let i = 0; i <= a.length; i++) matrix[i][0] = i;
+    for (let j = 0; j <= b.length; j++) matrix[0][j] = j;
+    for (let i = 1; i <= a.length; i++) {
+      for (let j = 1; j <= b.length; j++) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j - 1] + cost
+        );
+      }
+    }
+    return matrix[a.length][b.length];
+  };
+
+  const calculateSimilarity = (str1, str2) => {
+    const norm1 = normalizeStr(str1);
+    const norm2 = normalizeStr(str2);
+
+    if (!norm1 || !norm2) return 0.0;
+    if (norm1 === norm2) return 1.0;
+
+    const maxLen = Math.max(norm1.length, norm2.length);
+    const levDist = levenshteinDistance(norm1, norm2);
+    const levRatio = maxLen > 0 ? (maxLen - levDist) / maxLen : 0;
+
+    const tokens1 = new Set(norm1.split(' ').filter(Boolean));
+    const tokens2 = new Set(norm2.split(' ').filter(Boolean));
+    let intersection = 0;
+    tokens1.forEach(t => {
+      if (tokens2.has(t)) intersection++;
+    });
+    const union = new Set([...tokens1, ...tokens2]).size;
+    const tokenRatio = union > 0 ? intersection / union : 0;
+
+    let substringBonus = 0;
+    if (norm1.includes(norm2) || norm2.includes(norm1)) {
+      substringBonus = 0.15;
+    }
+
+    const finalScore = Math.min(1.0, (levRatio * 0.45) + (tokenRatio * 0.55) + substringBonus);
+    return Math.round(finalScore * 100) / 100;
+  };
+
   const excelMatches = useMemo(() => {
     if (!excelHeaders.length || !excelKeyColumn || (!excelPriceColumn && !excelCostColumn) || !excelRows.length) {
-      return { matched: [], unmatchedCount: 0, totalRows: 0, matchingCount: 0, differingCount: 0 };
+      return { matched: [], unmatchedCount: 0, totalRows: 0, matchingCount: 0, differingCount: 0, exactCount: 0, similarCount: 0 };
     }
     const activeCatalog = activeCatalogTab === 'source' ? goods : targetGoods;
     const keyIndex = excelHeaders.indexOf(excelKeyColumn);
     const saleIndex = excelPriceColumn ? excelHeaders.indexOf(excelPriceColumn) : -1;
     const costIndex = excelCostColumn ? excelHeaders.indexOf(excelCostColumn) : -1;
-    if (keyIndex === -1) return { matched: [], unmatchedCount: 0, totalRows: 0, matchingCount: 0, differingCount: 0 };
+    if (keyIndex === -1) return { matched: [], unmatchedCount: 0, totalRows: 0, matchingCount: 0, differingCount: 0, exactCount: 0, similarCount: 0 };
 
     const catalogMap = new Map();
+    const catalogItemsWithKeys = [];
+
     activeCatalog.forEach(item => {
-      let key = (excelMatchingField === 'goodsCode' ? item.goodsCode : item.goodsName) || '';
-      key = String(key).trim().toLowerCase();
-      if (key) catalogMap.set(key, item);
+      let rawKeyVal = (excelMatchingField === 'goodsCode' ? item.goodsCode : item.goodsName) || '';
+      let key = String(rawKeyVal).trim().toLowerCase();
+      if (key) {
+        catalogMap.set(key, item);
+        catalogItemsWithKeys.push({ item, rawKeyVal });
+      }
     });
 
     const parseNum = (val) => {
@@ -627,14 +691,42 @@ export default function App() {
     let unmatchedCount = 0;
     let matchingCount = 0;
     let differingCount = 0;
+    let exactCount = 0;
+    let similarCount = 0;
 
     excelRows.forEach((row, idx) => {
       const rawKey = row[keyIndex];
       if (rawKey === undefined || rawKey === null || String(rawKey).trim() === '') return;
       const keyStr = String(rawKey).trim().toLowerCase();
-      const catalogItem = catalogMap.get(keyStr);
+
+      let catalogItem = catalogMap.get(keyStr);
+      let matchType = 'exact';
+      let similarityScore = 1.0;
+
+      // Fuzzy / Similar Match if exact match fails
+      if (!catalogItem && enableFuzzyMatch && catalogItemsWithKeys.length > 0) {
+        let bestScore = 0;
+        let bestItem = null;
+
+        for (const catObj of catalogItemsWithKeys) {
+          const score = calculateSimilarity(rawKey, catObj.rawKeyVal);
+          if (score > bestScore) {
+            bestScore = score;
+            bestItem = catObj.item;
+          }
+        }
+
+        if (bestItem && bestScore >= excelFuzzyThreshold) {
+          catalogItem = bestItem;
+          matchType = 'similar';
+          similarityScore = bestScore;
+        }
+      }
 
       if (catalogItem) {
+        if (matchType === 'exact') exactCount++;
+        else similarCount++;
+
         const currentSalePrice = parseFloat(catalogItem.goodsPrice) || 0;
         const currentCostPrice = parseFloat(catalogItem.costPrice) || 0;
 
@@ -647,8 +739,12 @@ export default function App() {
         const saleDiff = newSalePrice - currentSalePrice;
         const costDiff = newCostPrice - currentCostPrice;
 
-        const isSaleMatching = saleIndex === -1 || saleDiff === 0;
-        const isCostMatching = costIndex === -1 || costDiff === 0;
+        // Flags for what prices to update based on excelUpdateTarget
+        const hasSaleChange = saleIndex !== -1 && (excelUpdateTarget === 'both' || excelUpdateTarget === 'sale_only');
+        const hasCostChange = costIndex !== -1 && (excelUpdateTarget === 'both' || excelUpdateTarget === 'cost_only');
+
+        const isSaleMatching = !hasSaleChange || saleDiff === 0;
+        const isCostMatching = !hasCostChange || costDiff === 0;
         const isMatching = isSaleMatching && isCostMatching;
 
         if (isMatching) matchingCount++;
@@ -664,17 +760,40 @@ export default function App() {
           currentCostPrice,
           newCostPrice,
           costDiff,
-          hasSaleChange: saleIndex !== -1,
-          hasCostChange: costIndex !== -1,
-          isMatching
+          hasSaleChange,
+          hasCostChange,
+          isMatching,
+          matchType,
+          similarityScore
         });
       } else {
         unmatchedCount++;
       }
     });
 
-    return { matched, unmatchedCount, totalRows: excelRows.length, matchingCount, differingCount };
-  }, [excelHeaders, excelKeyColumn, excelPriceColumn, excelCostColumn, excelRows, excelMatchingField, activeCatalogTab, goods, targetGoods]);
+    return {
+      matched,
+      unmatchedCount,
+      totalRows: excelRows.length,
+      matchingCount,
+      differingCount,
+      exactCount,
+      similarCount
+    };
+  }, [
+    excelHeaders,
+    excelKeyColumn,
+    excelPriceColumn,
+    excelCostColumn,
+    excelRows,
+    excelMatchingField,
+    activeCatalogTab,
+    goods,
+    targetGoods,
+    enableFuzzyMatch,
+    excelFuzzyThreshold,
+    excelUpdateTarget
+  ]);
 
   useEffect(() => {
     if (excelMatches.matched.length > 0) {
@@ -1737,72 +1856,151 @@ export default function App() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-[#12141d]/40 p-5 rounded-2xl border border-white/5">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-slate-400">1. Kolom Pengenal Excel</label>
-                    <select
-                      value={excelKeyColumn}
-                      onChange={(e) => setExcelKeyColumn(e.target.value)}
-                      className="bg-[#12141d] border border-white/10 focus:border-emerald-500/50 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
-                    >
-                      {excelHeaders.map((h, idx) => (
-                        <option key={`${h}_${idx}`} value={h}>{h}</option>
-                      ))}
-                    </select>
+                {/* Primary Simplified Controls */}
+                <div className="bg-[#12141d]/70 p-5 rounded-2xl border border-white/5 space-y-4">
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    {/* Mode Target Update Harga */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                      <span className="text-xs font-bold text-slate-300">Target Update Harga:</span>
+                      <div className="flex items-center bg-[#1a1d29] p-1 rounded-xl border border-white/10 gap-1 text-xs font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => setExcelUpdateTarget('both')}
+                          className={`px-3.5 py-1.5 rounded-lg transition-all ${
+                            excelUpdateTarget === 'both'
+                              ? 'bg-emerald-500 text-[#090a0f] font-bold shadow-lg shadow-emerald-500/20'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          HPP & Harga Jual
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setExcelUpdateTarget('cost_only')}
+                          className={`px-3.5 py-1.5 rounded-lg transition-all ${
+                            excelUpdateTarget === 'cost_only'
+                              ? 'bg-amber-500 text-[#090a0f] font-bold shadow-lg shadow-amber-500/20'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          HPP (Modal) Saja
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setExcelUpdateTarget('sale_only')}
+                          className={`px-3.5 py-1.5 rounded-lg transition-all ${
+                            excelUpdateTarget === 'sale_only'
+                              ? 'bg-sky-500 text-[#090a0f] font-bold shadow-lg shadow-sky-500/20'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          Harga Jual Saja
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Pencocokan Nama / Fuzzy Match Toggle */}
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer bg-[#1a1d29] px-3.5 py-2 rounded-xl border border-white/10 text-xs font-semibold text-purple-300 hover:border-purple-500/50 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={enableFuzzyMatch}
+                          onChange={(e) => setEnableFuzzyMatch(e.target.checked)}
+                          className="w-4 h-4 accent-purple-500 rounded cursor-pointer"
+                        />
+                        <span>Cari Nama Mirip (Fuzzy Match)</span>
+                      </label>
+
+                      {enableFuzzyMatch && (
+                        <select
+                          value={excelFuzzyThreshold}
+                          onChange={(e) => setExcelFuzzyThreshold(parseFloat(e.target.value))}
+                          className="bg-[#1a1d29] border border-purple-500/30 text-purple-200 text-xs font-bold rounded-xl px-3 py-2 focus:outline-none"
+                        >
+                          <option value={0.5} className="bg-[#12141d]">Kemiripan 50% (Fleksibel)</option>
+                          <option value={0.6} className="bg-[#12141d]">Kemiripan 60% (Sedang)</option>
+                          <option value={0.7} className="bg-[#12141d]">Kemiripan 70% (Ketat)</option>
+                          <option value={0.8} className="bg-[#12141d]">Kemiripan 80% (Sangat Ketat)</option>
+                        </select>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-slate-400">2. Cocokkan Berdasarkan</label>
-                    <select
-                      value={excelMatchingField}
-                      onChange={(e) => setExcelMatchingField(e.target.value)}
-                      className="bg-[#12141d] border border-white/10 focus:border-emerald-500/50 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
-                    >
-                      <option value="goodsCode">Barcode / Kode Produk (goodsCode)</option>
-                      <option value="goodsName">Nama Produk (goodsName)</option>
-                    </select>
-                  </div>
+                  {/* Auto-detected Column Mapping (Secondary Row) */}
+                  <div className="pt-3 border-t border-white/5">
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 font-semibold mb-2">
+                      <span>Pemetaan Kolom Excel (Terdeteksi Otomatis)</span>
+                      <span className="text-[10px] text-slate-500 font-mono">Ubah jika kolom Excel tidak sesuai</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                      <div className="bg-[#12141d] p-2.5 rounded-xl border border-white/5 flex flex-col gap-1">
+                        <span className="text-[10px] text-slate-400 font-semibold">1. Kolom Key Excel:</span>
+                        <select
+                          value={excelKeyColumn}
+                          onChange={(e) => setExcelKeyColumn(e.target.value)}
+                          className="bg-transparent text-white font-medium focus:outline-none text-xs"
+                        >
+                          {excelHeaders.map((h, idx) => (
+                            <option key={`${h}_${idx}`} value={h} className="bg-[#12141d]">{h}</option>
+                          ))}
+                        </select>
+                      </div>
 
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-emerald-400 flex items-center justify-between">
-                      <span>3. Kolom Harga Jual</span>
-                      <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-mono">HARGA JUAL</span>
-                    </label>
-                    <select
-                      value={excelPriceColumn}
-                      onChange={(e) => setExcelPriceColumn(e.target.value)}
-                      className="bg-[#12141d] border border-emerald-500/50 focus:border-emerald-400 rounded-xl px-3 py-2.5 text-xs text-emerald-300 font-bold focus:outline-none"
-                    >
-                      <option value="">-- Abaikan --</option>
-                      {excelHeaders.map((h, idx) => (
-                        <option key={`${h}_${idx}`} value={h}>{h}</option>
-                      ))}
-                    </select>
-                  </div>
+                      <div className="bg-[#12141d] p-2.5 rounded-xl border border-white/5 flex flex-col gap-1">
+                        <span className="text-[10px] text-slate-400 font-semibold">2. Tipe Key Catalog:</span>
+                        <select
+                          value={excelMatchingField}
+                          onChange={(e) => setExcelMatchingField(e.target.value)}
+                          className="bg-transparent text-white font-medium focus:outline-none text-xs"
+                        >
+                          <option value="goodsCode" className="bg-[#12141d]">Barcode / Kode Produk</option>
+                          <option value="goodsName" className="bg-[#12141d]">Nama Produk</option>
+                        </select>
+                      </div>
 
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-amber-400 flex items-center justify-between">
-                      <span>4. Kolom Harga Modal (HPP)</span>
-                      <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded font-mono">HARGA MODAL</span>
-                    </label>
-                    <select
-                      value={excelCostColumn}
-                      onChange={(e) => setExcelCostColumn(e.target.value)}
-                      className="bg-[#12141d] border border-amber-500/50 focus:border-amber-400 rounded-xl px-3 py-2.5 text-xs text-amber-300 font-bold focus:outline-none"
-                    >
-                      <option value="">-- Abaikan --</option>
-                      {excelHeaders.map((h, idx) => (
-                        <option key={`${h}_${idx}`} value={h}>{h}</option>
-                      ))}
-                    </select>
+                      <div className="bg-[#12141d] p-2.5 rounded-xl border border-emerald-500/20 flex flex-col gap-1">
+                        <span className="text-[10px] text-emerald-400 font-semibold">3. Kolom Harga Jual:</span>
+                        <select
+                          value={excelPriceColumn}
+                          onChange={(e) => setExcelPriceColumn(e.target.value)}
+                          className="bg-transparent text-emerald-300 font-bold focus:outline-none text-xs"
+                        >
+                          <option value="" className="bg-[#12141d]">-- Abaikan --</option>
+                          {excelHeaders.map((h, idx) => (
+                            <option key={`${h}_${idx}`} value={h} className="bg-[#12141d]">{h}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="bg-[#12141d] p-2.5 rounded-xl border border-amber-500/20 flex flex-col gap-1">
+                        <span className="text-[10px] text-amber-400 font-semibold">4. Kolom Modal (HPP):</span>
+                        <select
+                          value={excelCostColumn}
+                          onChange={(e) => setExcelCostColumn(e.target.value)}
+                          className="bg-transparent text-amber-300 font-bold focus:outline-none text-xs"
+                        >
+                          <option value="" className="bg-[#12141d]">-- Abaikan --</option>
+                          {excelHeaders.map((h, idx) => (
+                            <option key={`${h}_${idx}`} value={h} className="bg-[#12141d]">{h}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
+                {/* Summary & Apply Action Bar */}
                 <div className="flex flex-wrap items-center justify-between gap-4 bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/20">
                   <div className="flex flex-wrap items-center gap-4 text-xs">
                     <div><span className="text-slate-400">Total Baris: </span><span className="font-bold text-white font-mono">{excelMatches.totalRows}</span></div>
                     <div className="w-[1px] h-4 bg-white/10 hidden sm:block"></div>
-                    <div><span className="text-slate-400">Cocok: </span><span className="font-bold text-slate-200 font-mono">{excelMatches.matched.length} Produk</span></div>
+                    <div>
+                      <span className="text-slate-400">Cocok: </span>
+                      <span className="font-bold text-slate-200 font-mono">{excelMatches.matched.length} Produk </span>
+                      <span className="text-[11px] text-slate-400 font-sans">
+                        ({excelMatches.exactCount} Persis, {excelMatches.similarCount} Mirip)
+                      </span>
+                    </div>
                     <div className="w-[1px] h-4 bg-white/10 hidden sm:block"></div>
                     <div><span className="text-amber-400 font-semibold">Belum Sesuai: </span><span className="font-bold text-amber-300 font-mono bg-amber-500/20 px-2 py-0.5 rounded">{excelMatches.differingCount}</span></div>
                     <div className="w-[1px] h-4 bg-white/10 hidden sm:block"></div>
@@ -1822,17 +2020,29 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Live Progress Bar Indicator on Excel Page */}
-                {isSyncing && (
+                {/* Live Progress Bar Indicator with Detailed Counts */}
+                {(isSyncing || syncProgress.total > 0) && (
                   <div className="bg-[#12141d]/90 p-5 rounded-2xl border border-emerald-500/30 space-y-3 shadow-xl">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs font-mono">
                       <span className="text-slate-200 font-bold flex items-center gap-2">
-                        <ArrowsClockwise size={16} className="animate-spin text-emerald-400" />
-                        Meng-update Server Target: {syncProgress.current} / {syncProgress.total} produk
+                        {isSyncing ? (
+                          <ArrowsClockwise size={16} className="animate-spin text-emerald-400" />
+                        ) : (
+                          <CheckCircle size={16} className="text-emerald-400" />
+                        )}
+                        Status Update Server: {syncProgress.current} / {syncProgress.total} produk
                       </span>
-                      <span className="text-emerald-400 font-bold">
-                        ✓ Berhasil: {syncProgress.success} | ℹ️ Skip: {syncProgress.skipped} | ❌ Gagal: {syncProgress.error}
-                      </span>
+                      <div className="flex items-center gap-3 font-bold text-xs">
+                        <span className="text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 flex items-center gap-1">
+                          <CheckCircle size={14} /> Berhasil: {syncProgress.success}
+                        </span>
+                        <span className="text-sky-400 bg-sky-500/10 px-2.5 py-1 rounded-lg border border-sky-500/20 flex items-center gap-1">
+                          <Info size={14} /> Skip: {syncProgress.skipped}
+                        </span>
+                        <span className="text-rose-400 bg-rose-500/10 px-2.5 py-1 rounded-lg border border-rose-500/20 flex items-center gap-1">
+                          <XCircle size={14} /> Gagal: {syncProgress.error}
+                        </span>
+                      </div>
                     </div>
                     <div className="w-full h-3 bg-white/5 rounded-full overflow-hidden p-0.5 border border-white/10">
                       <div 
@@ -1846,9 +2056,9 @@ export default function App() {
                 {/* Filter & Selection Control Bar */}
                 {excelMatches.matched.length > 0 && (
                   <div className="space-y-3">
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#12141d]/80 p-3 rounded-2xl border border-white/5 text-xs">
+                    <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-[#12141d]/80 p-3 rounded-2xl border border-white/5 text-xs">
                       {/* Filter Status Tabs */}
-                      <div className="flex items-center bg-[#1a1d29] p-1 rounded-xl border border-white/10 gap-1 font-semibold">
+                      <div className="flex flex-wrap items-center bg-[#1a1d29] p-1 rounded-xl border border-white/10 gap-1 font-semibold">
                         <button
                           type="button"
                           onClick={() => setExcelFilterStatus('ALL')}
@@ -1888,6 +2098,63 @@ export default function App() {
                             {excelMatches.matchingCount}
                           </span>
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => setExcelFilterStatus('SIMILAR')}
+                          className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                            excelFilterStatus === 'SIMILAR'
+                              ? 'bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30'
+                              : 'text-slate-400 hover:text-purple-300'
+                          }`}
+                        >
+                          <span>Mirip (Fuzzy)</span>
+                          <span className="bg-purple-500/30 text-purple-200 px-1.5 py-0.5 rounded-full text-[10px] font-mono">
+                            {excelMatches.similarCount}
+                          </span>
+                        </button>
+
+                        {/* Server Status Filters */}
+                        {syncProgress.total > 0 && (
+                          <>
+                            <div className="w-[1px] h-4 bg-white/10 mx-1"></div>
+                            <button
+                              type="button"
+                              onClick={() => setExcelFilterStatus('SYNC_SUCCESS')}
+                              className={`px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1 ${
+                                excelFilterStatus === 'SYNC_SUCCESS'
+                                  ? 'bg-emerald-500/30 text-emerald-300 font-bold border border-emerald-500/40'
+                                  : 'text-slate-400 hover:text-emerald-300'
+                              }`}
+                            >
+                              <CheckCircle size={12} />
+                              <span>Berhasil ({syncProgress.success})</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setExcelFilterStatus('SYNC_SKIPPED')}
+                              className={`px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1 ${
+                                excelFilterStatus === 'SYNC_SKIPPED'
+                                  ? 'bg-sky-500/30 text-sky-300 font-bold border border-sky-500/40'
+                                  : 'text-slate-400 hover:text-sky-300'
+                              }`}
+                            >
+                              <Info size={12} />
+                              <span>Skip ({syncProgress.skipped})</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setExcelFilterStatus('SYNC_ERROR')}
+                              className={`px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1 ${
+                                excelFilterStatus === 'SYNC_ERROR'
+                                  ? 'bg-rose-500/30 text-rose-300 font-bold border border-rose-500/40'
+                                  : 'text-slate-400 hover:text-rose-300'
+                              }`}
+                            >
+                              <XCircle size={12} />
+                              <span>Gagal ({syncProgress.error})</span>
+                            </button>
+                          </>
+                        )}
                       </div>
 
                       {/* Quick Selection Buttons */}
@@ -1929,6 +2196,10 @@ export default function App() {
                                     .filter(m => {
                                       if (excelFilterStatus === 'NEED_UPDATE') return !m.isMatching;
                                       if (excelFilterStatus === 'ALREADY_MATCHED') return m.isMatching;
+                                      if (excelFilterStatus === 'SIMILAR') return m.matchType === 'similar';
+                                      if (excelFilterStatus === 'SYNC_SUCCESS') return syncResults[m.catalogItem.uuid]?.status === 'success';
+                                      if (excelFilterStatus === 'SYNC_SKIPPED') return syncResults[m.catalogItem.uuid]?.status === 'skipped';
+                                      if (excelFilterStatus === 'SYNC_ERROR') return syncResults[m.catalogItem.uuid]?.status === 'error';
                                       return true;
                                     })
                                     .length > 0 &&
@@ -1936,6 +2207,10 @@ export default function App() {
                                     .filter(m => {
                                       if (excelFilterStatus === 'NEED_UPDATE') return !m.isMatching;
                                       if (excelFilterStatus === 'ALREADY_MATCHED') return m.isMatching;
+                                      if (excelFilterStatus === 'SIMILAR') return m.matchType === 'similar';
+                                      if (excelFilterStatus === 'SYNC_SUCCESS') return syncResults[m.catalogItem.uuid]?.status === 'success';
+                                      if (excelFilterStatus === 'SYNC_SKIPPED') return syncResults[m.catalogItem.uuid]?.status === 'skipped';
+                                      if (excelFilterStatus === 'SYNC_ERROR') return syncResults[m.catalogItem.uuid]?.status === 'error';
                                       return true;
                                     })
                                     .every(m => excelCheckedUuids.has(m.catalogItem.uuid))
@@ -1944,6 +2219,10 @@ export default function App() {
                                   const filtered = excelMatches.matched.filter(m => {
                                     if (excelFilterStatus === 'NEED_UPDATE') return !m.isMatching;
                                     if (excelFilterStatus === 'ALREADY_MATCHED') return m.isMatching;
+                                    if (excelFilterStatus === 'SIMILAR') return m.matchType === 'similar';
+                                    if (excelFilterStatus === 'SYNC_SUCCESS') return syncResults[m.catalogItem.uuid]?.status === 'success';
+                                    if (excelFilterStatus === 'SYNC_SKIPPED') return syncResults[m.catalogItem.uuid]?.status === 'skipped';
+                                    if (excelFilterStatus === 'SYNC_ERROR') return syncResults[m.catalogItem.uuid]?.status === 'error';
                                     return true;
                                   });
                                   toggleExcelCheckAllFiltered(filtered);
@@ -1952,9 +2231,11 @@ export default function App() {
                               />
                             </th>
                             <th className="p-3">#</th>
-                            <th className="p-3 font-sans">Nama Produk</th>
-                            <th className="p-3">Key / Barcode</th>
+                            <th className="p-3 font-sans">Nama Produk Katalog</th>
+                            <th className="p-3">Key Excel</th>
+                            <th className="p-3 text-center font-sans">Pencocokan</th>
                             <th className="p-3 text-center font-sans">Status Kesesuaian</th>
+                            <th className="p-3 text-center font-sans">Status Update Server</th>
                             {excelPriceColumn && <th className="p-3 text-right text-emerald-400">Harga Jual ({excelPriceColumn})</th>}
                             {excelCostColumn && <th className="p-3 text-right text-amber-400">Modal / HPP ({excelCostColumn})</th>}
                           </tr>
@@ -1964,9 +2245,15 @@ export default function App() {
                             .filter(m => {
                               if (excelFilterStatus === 'NEED_UPDATE') return !m.isMatching;
                               if (excelFilterStatus === 'ALREADY_MATCHED') return m.isMatching;
+                              if (excelFilterStatus === 'SIMILAR') return m.matchType === 'similar';
+                              if (excelFilterStatus === 'SYNC_SUCCESS') return syncResults[m.catalogItem.uuid]?.status === 'success';
+                              if (excelFilterStatus === 'SYNC_SKIPPED') return syncResults[m.catalogItem.uuid]?.status === 'skipped';
+                              if (excelFilterStatus === 'SYNC_ERROR') return syncResults[m.catalogItem.uuid]?.status === 'error';
                               return true;
                             })
-                            .map((m, idx) => (
+                            .map((m, idx) => {
+                            const sRes = syncResults[m.catalogItem.uuid];
+                            return (
                             <tr key={idx} className="hover:bg-white/5">
                               <td className="p-3 text-center">
                                 <input
@@ -1980,26 +2267,64 @@ export default function App() {
                               <td className="p-3 font-sans text-slate-200 font-medium">{m.catalogItem.goodsName}</td>
                               <td className="p-3 text-slate-400">{m.excelKey}</td>
                               <td className="p-3 text-center font-sans">
-                                {m.isMatching ? (
-                                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">✓ Sudah Sesuai</span>
+                                {m.matchType === 'exact' ? (
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                    Persis (100%)
+                                  </span>
                                 ) : (
-                                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">⚠ Belum Sesuai</span>
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                                    Mirip ({Math.round(m.similarityScore * 100)}%)
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3 text-center font-sans">
+                                {m.isMatching ? (
+                                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">Sudah Sesuai</span>
+                                ) : (
+                                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">Belum Sesuai</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-center font-sans">
+                                {sRes ? (
+                                  sRes.status === 'success' ? (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                      <CheckCircle size={12} />
+                                      Berhasil
+                                    </span>
+                                  ) : sRes.status === 'skipped' ? (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40" title={sRes.message}>
+                                      <Info size={12} />
+                                      Skip
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40" title={sRes.message}>
+                                      <XCircle size={12} />
+                                      Gagal
+                                    </span>
+                                  )
+                                ) : (
+                                  <span className="text-[10px] text-slate-500 font-mono">Belum Sync</span>
                                 )}
                               </td>
                               {excelPriceColumn && (
                                 <td className="p-3 text-right">
                                   <span className="text-slate-500 line-through text-[11px] mr-2">Rp {m.currentSalePrice.toLocaleString('id-ID')}</span>
-                                  <span className="text-emerald-400 font-bold">Rp {m.newSalePrice.toLocaleString('id-ID')}</span>
+                                  <span className={`font-bold ${m.hasSaleChange ? 'text-emerald-400' : 'text-slate-400'}`}>
+                                    Rp {m.newSalePrice.toLocaleString('id-ID')}
+                                  </span>
                                 </td>
                               )}
                               {excelCostColumn && (
                                 <td className="p-3 text-right">
                                   <span className="text-slate-500 line-through text-[11px] mr-2">Rp {m.currentCostPrice.toLocaleString('id-ID')}</span>
-                                  <span className="text-amber-400 font-bold">Rp {m.newCostPrice.toLocaleString('id-ID')}</span>
+                                  <span className={`font-bold ${m.hasCostChange ? 'text-amber-400' : 'text-slate-400'}`}>
+                                    Rp {m.newCostPrice.toLocaleString('id-ID')}
+                                  </span>
                                 </td>
                               )}
                             </tr>
-                          ))}
+                          );
+                          })}
                         </tbody>
                       </table>
                     </div>
