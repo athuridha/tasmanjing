@@ -8,9 +8,15 @@ const os = require('os');
 
 const mainService = require('./services/main');
 const itspcService = require('./services/itspc');
-const grabotechService = require('./services/grabotech');
 const yyvendorService = require('./services/yyvendor');
 const common = require('./services/common');
+
+let grabotechService = null;
+try {
+  grabotechService = require('./services/grabotech');
+} catch (err) {
+  console.warn('[Server] Grabotech service disabled in this environment:', err.message);
+}
 
 const app = express();
 app.use(cors());
@@ -22,6 +28,9 @@ const activeDownloads = {};
 
 // Grabotech Captcha endpoint (via Puppeteer persistent browser)
 app.get('/api/grabotech-captcha', async (req, res) => {
+  if (!grabotechService) {
+    return res.status(400).json({ success: false, error: 'Grabotech service is not supported on Vercel environment' });
+  }
   try {
     const result = await grabotechService.getCaptcha();
     return res.json(result);
@@ -44,6 +53,9 @@ app.post('/api/login', async (req, res) => {
       return res.json(result);
     }
     if (type === 'grabotech') {
+      if (!grabotechService) {
+        return res.status(400).json({ success: false, error: 'Grabotech service is not supported on Vercel environment' });
+      }
       const { sessionCookie, vifCode } = req.body;
       const result = await grabotechService.login(userAccount, userPwd, sessionCookie, vifCode);
       return res.json(result);

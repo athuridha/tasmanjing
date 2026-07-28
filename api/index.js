@@ -1,8 +1,9 @@
+let app;
 try {
-  const app = require('../server.js');
-  module.exports = app;
+  app = require('../server.js');
 } catch (err) {
-  module.exports = (req, res) => {
+  console.error('[Vercel API] Failed to load server.js:', err);
+  app = (req, res) => {
     res.status(500).json({
       error: "Failed to require server.js",
       message: err.message,
@@ -10,3 +11,5 @@ try {
     });
   };
 }
+
+module.exports = app;
