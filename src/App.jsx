@@ -17,7 +17,9 @@ import {
   Image,
   Coins,
   Percent,
-  Tag
+  Tag,
+  Sliders,
+  CaretDown
 } from '@phosphor-icons/react';
 
 export default function App() {
@@ -165,6 +167,8 @@ export default function App() {
   const [enableFuzzyMatch, setEnableFuzzyMatch] = useState(true);
   const [excelFuzzyThreshold, setExcelFuzzyThreshold] = useState(0.6);
   const [excelUpdateTarget, setExcelUpdateTarget] = useState('both'); // 'both', 'cost_only', 'sale_only'
+  const [showExcelAdvanced, setShowExcelAdvanced] = useState(false);
+  const [showExcelLogs, setShowExcelLogs] = useState(false);
 
   // Auto-scroll Log Console
   useEffect(() => {
@@ -935,27 +939,27 @@ export default function App() {
   return (
     <div className="min-h-[100dvh] pb-12 flex flex-col font-sans bg-[#090a0f] text-white">
       {/* Top Header Bar */}
-      <header className="border-b border-white/5 py-4 px-6 md:px-12 liquid-glass sticky top-0 z-40">
+      <header className="border-b border-slate-800 py-4 px-6 md:px-12 liquid-glass sticky top-0 z-40">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
           
           <div className="flex items-center gap-3">
-            <div className="bg-emerald-500/10 p-2.5 rounded-2xl border border-emerald-500/20 text-emerald-400">
+            <div className="bg-slate-800 p-2.5 rounded-2xl border border-slate-700 text-slate-200">
               <Database size={24} />
             </div>
             <div>
               <h1 className="text-lg font-bold tracking-tight text-white leading-none">IT AUTOMATION</h1>
-              <p className="text-xs text-slate-500 mt-1">Goods Sync Automation</p>
+              <p className="text-xs text-slate-400 mt-1">Goods Sync Automation</p>
             </div>
           </div>
 
           {/* Top Page Navigation Switcher */}
-          <div className="flex items-center bg-[#12141d]/90 p-1.5 rounded-2xl border border-white/10 gap-1.5 text-xs font-semibold">
+          <div className="flex items-center bg-[#0d0e15] p-1.5 rounded-2xl border border-slate-800 gap-1.5 text-xs font-medium">
             <button
               type="button"
               onClick={() => setActiveNavTab('sync')}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
                 activeNavTab === 'sync'
-                  ? 'bg-emerald-500 text-[#090a0f] font-bold shadow-lg shadow-emerald-500/20'
+                  ? 'bg-slate-800 text-white font-semibold border border-slate-700 shadow-sm'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
@@ -967,13 +971,13 @@ export default function App() {
               onClick={() => setActiveNavTab('excel')}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
                 activeNavTab === 'excel'
-                  ? 'bg-emerald-500 text-[#090a0f] font-bold shadow-lg shadow-emerald-500/20'
+                  ? 'bg-slate-800 text-white font-semibold border border-slate-700 shadow-sm'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
               <Coins size={16} />
               <span>Penyesuaian Harga Excel</span>
-              <span className="text-[9px] uppercase px-1.5 py-0.5 rounded-full bg-black/30 text-emerald-300 font-extrabold tracking-wider">
+              <span className="text-[9px] uppercase px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
                 Baru
               </span>
             </button>
@@ -982,13 +986,13 @@ export default function App() {
           <div className="hidden lg:flex items-center gap-3 text-xs font-mono">
             {sourceToken && (
               <span className="flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-full border border-emerald-500/20">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-status-pulse"></span>
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-status-pulse"></span>
                 Source Connected
               </span>
             )}
             {targetToken && (
               <span className="flex items-center gap-1.5 bg-sky-500/10 text-sky-400 px-2.5 py-1 rounded-full border border-sky-500/20">
-                <span className="h-2 w-2 rounded-full bg-sky-500 animate-status-pulse"></span>
+                <span className="h-2 w-2 rounded-full bg-sky-400 animate-status-pulse"></span>
                 Target Connected
               </span>
             )}
@@ -996,34 +1000,45 @@ export default function App() {
         </div>
       </header>
 
-      {/* PAGE VIEW 1: 100% EXACT VERCEL SCREENSHOT MATCH (tasmanjing.vercel.app) */}
+      {/* PAGE VIEW 1: FULL HIGH-AGENCY BENTO STUDIO WORKSPACE */}
       {activeNavTab === 'sync' && (
-        <main className="max-w-7xl w-full mx-auto px-6 md:px-12 mt-8 flex-1 grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <main className="max-w-7xl w-full mx-auto px-6 md:px-12 mt-8 flex-1 space-y-8 animate-fadeIn">
           
-          {/* Left Column: Source Account Card & Target Account Card */}
-          <div className="lg:col-span-1 space-y-6">
+          {/* Top Horizontal Bento Connection Hub (Side-by-Side Source & Target) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
-            {/* 1. Source Account Card */}
-            <section className="liquid-glass rounded-3xl p-6 border border-white/5 spring-transition">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="bg-emerald-500/10 p-2.5 rounded-xl text-emerald-400">
-                  <Database size={20} />
+            {/* 1. Source Account Bento Card */}
+            <section className="liquid-glass rounded-3xl p-6 border border-slate-800 space-y-4 spring-transition">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="bg-slate-800 p-2.5 rounded-2xl text-slate-300 border border-slate-700">
+                    <Database size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-white tracking-tight">Source Account</h2>
+                    <p className="text-[11px] text-slate-400">Akun Asal (Pengambil Data Produk)</p>
+                  </div>
                 </div>
-                <h2 className="text-base font-bold text-white">Source Account</h2>
+                {sourceToken && (
+                  <span className="flex items-center gap-1.5 bg-emerald-500/15 text-emerald-300 text-xs font-semibold px-3 py-1 rounded-full border border-emerald-500/30">
+                    <span className="h-2 w-2 rounded-full bg-emerald-400 animate-status-pulse"></span>
+                    Connected
+                  </span>
+                )}
               </div>
               
-              <form onSubmit={handleLoginSource} className="space-y-4">
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs font-medium text-slate-400">Source Portal Type</label>
-                  <div className="flex bg-[#12141d]/80 p-1 border border-white/5 rounded-xl gap-1">
+              <form onSubmit={handleLoginSource} className="space-y-3.5">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Source Portal Type</label>
+                  <div className="flex bg-[#0d0e15] p-1 border border-slate-800 rounded-xl gap-1 text-xs">
                     <button
                       type="button"
                       disabled={sourceToken !== ''}
                       onClick={() => setSourceType('main')}
-                      className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                         sourceType === 'main' 
-                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-                          : 'text-slate-400 hover:text-white border border-transparent'
+                          ? 'bg-slate-800 text-white border border-slate-700 shadow-sm' 
+                          : 'text-slate-400 hover:text-white'
                       }`}
                     >
                       VM Oren
@@ -1032,10 +1047,10 @@ export default function App() {
                       type="button"
                       disabled={sourceToken !== ''}
                       onClick={() => setSourceType('itspc')}
-                      className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                         sourceType === 'itspc' 
-                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-                          : 'text-slate-400 hover:text-white border border-transparent'
+                          ? 'bg-slate-800 text-white border border-slate-700 shadow-sm' 
+                          : 'text-slate-400 hover:text-white'
                       }`}
                     >
                       VM Putih
@@ -1045,10 +1060,10 @@ export default function App() {
                         type="button"
                         disabled={sourceToken !== ''}
                         onClick={() => setSourceType('grabotech')}
-                        className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                           sourceType === 'grabotech' 
-                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-                            : 'text-slate-400 hover:text-white border border-transparent'
+                            ? 'bg-slate-800 text-white border border-slate-700 shadow-sm' 
+                            : 'text-slate-400 hover:text-white'
                         }`}
                       >
                         Grabotech
@@ -1058,10 +1073,10 @@ export default function App() {
                       type="button"
                       disabled={sourceToken !== ''}
                       onClick={() => setSourceType('yyvendor')}
-                      className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                         sourceType === 'yyvendor' 
-                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-                          : 'text-slate-400 hover:text-white border border-transparent'
+                          ? 'bg-slate-800 text-white border border-slate-700 shadow-sm' 
+                          : 'text-slate-400 hover:text-white'
                       }`}
                     >
                       Yunyin
@@ -1069,110 +1084,115 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs font-medium text-slate-400">Account Username</label>
-                  <input 
-                    type="text" 
-                    disabled={sourceToken !== ''}
-                    value={sourceAccount}
-                    onChange={(e) => setSourceAccount(e.target.value)}
-                    placeholder="Enter username" 
-                    className="bg-[#12141d]/80 border border-white/5 focus:border-emerald-500/50 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none transition-all duration-200"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs font-medium text-slate-400">Account Password</label>
-                  <input 
-                    type="password" 
-                    disabled={sourceToken !== ''}
-                    value={sourcePwd}
-                    onChange={(e) => setSourcePwd(e.target.value)}
-                    placeholder="Password" 
-                    className="bg-[#12141d]/80 border border-white/5 focus:border-emerald-500/50 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none transition-all duration-200"
-                  />
-                </div>
-
-                {sourceType === 'grabotech' && !sourceToken && (
-                  <div className="flex flex-col gap-2">
-                    <label className="text-xs font-medium text-slate-400">Verification Code</label>
-                    <div className="flex gap-2">
+                {!sourceToken ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
                       <input 
                         type="text" 
-                        value={sourceVifCode}
-                        onChange={(e) => setSourceVifCode(e.target.value)}
-                        placeholder="Enter CAPTCHA" 
-                        className="flex-1 bg-[#12141d]/80 border border-white/5 focus:border-emerald-500/50 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none transition-all duration-200"
+                        value={sourceAccount}
+                        onChange={(e) => setSourceAccount(e.target.value)}
+                        placeholder="Username Source" 
+                        className="w-full bg-[#0d0e15] border border-slate-800 focus:border-slate-600 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none transition-all font-medium"
                       />
-                      {sourceCaptchaUrl ? (
-                        <div className="flex items-center gap-2 bg-[#12141d]/80 border border-white/5 rounded-xl p-1 shrink-0">
-                          <img src={sourceCaptchaUrl} alt="CAPTCHA" className="h-[38px] rounded-lg object-contain" />
-                          <button type="button" onClick={loadSourceCaptcha} className="p-2 text-slate-400 hover:text-white">
-                            <ArrowsClockwise size={16} />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center bg-[#12141d]/80 border border-white/5 rounded-xl px-4 h-[44px] text-xs text-slate-500 shrink-0">
-                          Loading...
-                        </div>
-                      )}
                     </div>
+                    <div>
+                      <input 
+                        type="password" 
+                        value={sourcePwd}
+                        onChange={(e) => setSourcePwd(e.target.value)}
+                        placeholder="Password Source" 
+                        className="w-full bg-[#0d0e15] border border-slate-800 focus:border-slate-600 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none transition-all font-medium"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
+                {sourceType === 'grabotech' && !sourceToken && (
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      value={sourceVifCode}
+                      onChange={(e) => setSourceVifCode(e.target.value)}
+                      placeholder="Input CAPTCHA" 
+                      className="flex-1 bg-[#0d0e15] border border-slate-800 focus:border-slate-600 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none"
+                    />
+                    {sourceCaptchaUrl ? (
+                      <div className="flex items-center gap-1.5 bg-[#0d0e15] border border-slate-800 rounded-xl p-1 shrink-0">
+                        <img src={sourceCaptchaUrl} alt="CAPTCHA" className="h-[30px] rounded object-contain" />
+                        <button type="button" onClick={loadSourceCaptcha} className="p-1.5 text-slate-400 hover:text-white">
+                          <ArrowsClockwise size={14} />
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                 )}
 
                 {sourceLoginError && (
-                  <div className="bg-rose-500/10 text-rose-400 p-3 rounded-xl border border-rose-500/20 text-xs flex gap-2 items-start">
-                    <Warning size={14} className="mt-0.5 shrink-0" />
+                  <div className="bg-rose-500/10 text-rose-400 p-2.5 rounded-xl border border-rose-500/20 text-xs flex gap-2 items-center">
+                    <Warning size={14} className="shrink-0" />
                     <span>{sourceLoginError}</span>
                   </div>
                 )}
 
                 {sourceUser ? (
-                  <div className="bg-white/2 rounded-xl p-3.5 border border-white/5 space-y-1.5 text-xs text-slate-400">
-                    <div className="flex justify-between"><span className="text-slate-500">Contact:</span><span className="font-medium text-slate-200">{sourceUser.contactMan || '-'}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-500">Email:</span><span className="font-medium text-slate-200">{sourceUser.email || '-'}</span></div>
+                  <div className="bg-[#0d0e15] rounded-2xl p-3 border border-slate-800 flex items-center justify-between text-xs text-slate-300">
+                    <div>
+                      <span className="font-semibold text-white block">{sourceUser.contactMan || sourceAccount}</span>
+                      <span className="text-[11px] text-slate-400">{goods.length} produk katalog dimuat</span>
+                    </div>
                     <button 
                       type="button" 
                       onClick={() => { setSourceToken(''); setSourceUser(null); setGoods([]); }}
-                      className="w-full mt-3 text-center py-1.5 border border-white/10 hover:border-rose-500/30 text-slate-400 hover:text-rose-400 rounded-lg transition-all duration-200 font-medium"
+                      className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-[11px] font-semibold rounded-xl transition-all"
                     >
-                      Disconnect Account
+                      Disconnect
                     </button>
                   </div>
                 ) : (
                   <button 
                     type="submit" 
                     disabled={isLoggingInSource}
-                    className="w-full flex items-center justify-center gap-2 py-3 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-[#090a0f] text-sm font-semibold rounded-xl spring-transition disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 text-xs font-semibold rounded-xl transition-all disabled:opacity-50"
                   >
-                    {isLoggingInSource ? <ArrowsClockwise size={16} className="animate-spin" /> : <Key size={16} />}
-                    Connect Source
+                    {isLoggingInSource ? <ArrowsClockwise size={14} className="animate-spin" /> : <Key size={14} />}
+                    <span>Login & Muat Katalog Source</span>
                   </button>
                 )}
               </form>
             </section>
 
-            {/* 2. Target Account Card */}
-            <section className="liquid-glass rounded-3xl p-6 border border-white/5 spring-transition">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="bg-sky-500/10 p-2.5 rounded-xl text-sky-400">
-                  <Storefront size={20} />
+            {/* 2. Target Account Bento Card */}
+            <section className="liquid-glass rounded-3xl p-6 border border-slate-800 space-y-4 spring-transition">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="bg-slate-800 p-2.5 rounded-2xl text-slate-300 border border-slate-700">
+                    <Storefront size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-white tracking-tight">Target Account</h2>
+                    <p className="text-[11px] text-slate-400">Akun Tujuan (Penerima Update Produk)</p>
+                  </div>
                 </div>
-                <h2 className="text-base font-bold text-white">Target Account</h2>
+                {targetToken && (
+                  <span className="flex items-center gap-1.5 bg-sky-500/15 text-sky-300 text-xs font-semibold px-3 py-1 rounded-full border border-sky-500/30">
+                    <span className="h-2 w-2 rounded-full bg-sky-400 animate-status-pulse"></span>
+                    Connected
+                  </span>
+                )}
               </div>
               
-              <form onSubmit={handleLoginTarget} className="space-y-4">
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs font-medium text-slate-400">Target Portal Type</label>
-                  <div className="flex bg-[#12141d]/80 p-1 border border-white/5 rounded-xl gap-1">
+              <form onSubmit={handleLoginTarget} className="space-y-3.5">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Target Portal Type</label>
+                  <div className="flex bg-[#0d0e15] p-1 border border-slate-800 rounded-xl gap-1 text-xs">
                     <button
                       type="button"
                       disabled={targetToken !== ''}
                       onClick={() => setTargetType('main')}
-                      className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                         targetType === 'main' 
-                          ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' 
-                          : 'text-slate-400 hover:text-white border border-transparent'
+                          ? 'bg-slate-800 text-white border border-slate-700 shadow-sm' 
+                          : 'text-slate-400 hover:text-white'
                       }`}
                     >
                       VM Oren
@@ -1181,10 +1201,10 @@ export default function App() {
                       type="button"
                       disabled={targetToken !== ''}
                       onClick={() => setTargetType('itspc')}
-                      className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                         targetType === 'itspc' 
-                          ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' 
-                          : 'text-slate-400 hover:text-white border border-transparent'
+                          ? 'bg-slate-800 text-white border border-slate-700 shadow-sm' 
+                          : 'text-slate-400 hover:text-white'
                       }`}
                     >
                       VM Putih
@@ -1194,10 +1214,10 @@ export default function App() {
                         type="button"
                         disabled={targetToken !== ''}
                         onClick={() => setTargetType('grabotech')}
-                        className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                           targetType === 'grabotech' 
-                            ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' 
-                            : 'text-slate-400 hover:text-white border border-transparent'
+                            ? 'bg-slate-800 text-white border border-slate-700 shadow-sm' 
+                            : 'text-slate-400 hover:text-white'
                         }`}
                       >
                         Grabotech
@@ -1207,10 +1227,10 @@ export default function App() {
                       type="button"
                       disabled={targetToken !== ''}
                       onClick={() => setTargetType('yyvendor')}
-                      className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                         targetType === 'yyvendor' 
-                          ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30' 
-                          : 'text-slate-400 hover:text-white border border-transparent'
+                          ? 'bg-slate-800 text-white border border-slate-700 shadow-sm' 
+                          : 'text-slate-400 hover:text-white'
                       }`}
                     >
                       Yunyin
@@ -1218,84 +1238,78 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs font-medium text-slate-400">Account Username</label>
-                  <input 
-                    type="text" 
-                    disabled={targetToken !== ''}
-                    value={targetAccount}
-                    onChange={(e) => setTargetAccount(e.target.value)}
-                    placeholder="Enter target username" 
-                    className="bg-[#12141d]/80 border border-white/5 focus:border-sky-500/50 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none transition-all duration-200"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs font-medium text-slate-400">Account Password</label>
-                  <input 
-                    type="password" 
-                    disabled={targetToken !== ''}
-                    value={targetPwd}
-                    onChange={(e) => setTargetPwd(e.target.value)}
-                    placeholder="Password" 
-                    className="bg-[#12141d]/80 border border-white/5 focus:border-sky-500/50 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none transition-all duration-200"
-                  />
-                </div>
-
-                {targetType === 'grabotech' && !targetToken && (
-                  <div className="flex flex-col gap-2">
-                    <label className="text-xs font-medium text-slate-400">Verification Code</label>
-                    <div className="flex gap-2">
+                {!targetToken ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
                       <input 
                         type="text" 
-                        value={targetVifCode}
-                        onChange={(e) => setTargetVifCode(e.target.value)}
-                        placeholder="Enter CAPTCHA" 
-                        className="flex-1 bg-[#12141d]/80 border border-white/5 focus:border-sky-500/50 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none transition-all duration-200"
+                        value={targetAccount}
+                        onChange={(e) => setTargetAccount(e.target.value)}
+                        placeholder="Username Target" 
+                        className="w-full bg-[#0d0e15] border border-slate-800 focus:border-slate-600 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none transition-all font-medium"
                       />
-                      {targetCaptchaUrl ? (
-                        <div className="flex items-center gap-2 bg-[#12141d]/80 border border-white/5 rounded-xl p-1 shrink-0">
-                          <img src={targetCaptchaUrl} alt="CAPTCHA" className="h-[38px] rounded-lg object-contain" />
-                          <button type="button" onClick={loadTargetCaptcha} className="p-2 text-slate-400 hover:text-white">
-                            <ArrowsClockwise size={16} />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center bg-[#12141d]/80 border border-white/5 rounded-xl px-4 h-[44px] text-xs text-slate-500 shrink-0">
-                          Loading...
-                        </div>
-                      )}
                     </div>
+                    <div>
+                      <input 
+                        type="password" 
+                        value={targetPwd}
+                        onChange={(e) => setTargetPwd(e.target.value)}
+                        placeholder="Password Target" 
+                        className="w-full bg-[#0d0e15] border border-slate-800 focus:border-slate-600 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none transition-all font-medium"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
+                {targetType === 'grabotech' && !targetToken && (
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      value={targetVifCode}
+                      onChange={(e) => setTargetVifCode(e.target.value)}
+                      placeholder="Input CAPTCHA" 
+                      className="flex-1 bg-[#0d0e15] border border-slate-800 focus:border-slate-600 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none"
+                    />
+                    {targetCaptchaUrl ? (
+                      <div className="flex items-center gap-1.5 bg-[#0d0e15] border border-slate-800 rounded-xl p-1 shrink-0">
+                        <img src={targetCaptchaUrl} alt="CAPTCHA" className="h-[30px] rounded object-contain" />
+                        <button type="button" onClick={loadTargetCaptcha} className="p-1.5 text-slate-400 hover:text-white">
+                          <ArrowsClockwise size={14} />
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                 )}
 
                 {targetLoginError && (
-                  <div className="bg-rose-500/10 text-rose-400 p-3 rounded-xl border border-rose-500/20 text-xs flex gap-2 items-start">
-                    <Warning size={14} className="mt-0.5 shrink-0" />
+                  <div className="bg-rose-500/10 text-rose-400 p-2.5 rounded-xl border border-rose-500/20 text-xs flex gap-2 items-center">
+                    <Warning size={14} className="shrink-0" />
                     <span>{targetLoginError}</span>
                   </div>
                 )}
 
                 {targetUser ? (
-                  <div className="bg-white/2 rounded-xl p-3.5 border border-white/5 space-y-1.5 text-xs text-slate-400">
-                    <div className="flex justify-between"><span className="text-slate-500">Contact:</span><span className="font-medium text-slate-200">{targetUser.contactMan || '-'}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-500">Email:</span><span className="font-medium text-slate-200">{targetUser.email || '-'}</span></div>
+                  <div className="bg-[#0d0e15] rounded-2xl p-3 border border-slate-800 flex items-center justify-between text-xs text-slate-300">
+                    <div>
+                      <span className="font-semibold text-white block">{targetUser.contactMan || targetAccount}</span>
+                      <span className="text-[11px] text-slate-400">{targetGoods.length} produk katalog target</span>
+                    </div>
                     <button 
                       type="button" 
                       onClick={() => { setTargetToken(''); setTargetUser(null); setTargetGoods([]); }}
-                      className="w-full mt-3 text-center py-1.5 border border-white/10 hover:border-rose-500/30 text-slate-400 hover:text-rose-400 rounded-lg transition-all duration-200 font-medium"
+                      className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-[11px] font-semibold rounded-xl transition-all"
                     >
-                      Disconnect Account
+                      Disconnect
                     </button>
                   </div>
                 ) : (
                   <button 
                     type="submit" 
                     disabled={isLoggingInTarget}
-                    className="w-full flex items-center justify-center gap-2 py-3 bg-sky-500 hover:bg-sky-400 active:scale-[0.98] text-[#090a0f] text-sm font-semibold rounded-xl spring-transition disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 text-xs font-semibold rounded-xl transition-all disabled:opacity-50"
                   >
-                    {isLoggingInTarget ? <ArrowsClockwise size={16} className="animate-spin" /> : <Key size={16} />}
-                    Connect Target
+                    {isLoggingInTarget ? <ArrowsClockwise size={14} className="animate-spin" /> : <Key size={14} />}
+                    <span>Login & Muat Katalog Target</span>
                   </button>
                 )}
               </form>
@@ -1303,53 +1317,56 @@ export default function App() {
 
           </div>
 
-          {/* Right Column: Synchronization Panel & Catalog Area */}
-          <div className="lg:col-span-2 space-y-6">
+          {/* Full-Width Synchronization Panel & Catalog Studio */}
+          <div className="space-y-6">
 
             {/* Synchronization Panel */}
-            <section className="liquid-glass rounded-3xl p-6 border border-white/5 spring-transition">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <section className="liquid-glass rounded-3xl p-6 border border-slate-800 space-y-4">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-base font-bold text-white">Synchronization Panel</h2>
-                  <p className="text-xs text-slate-500 mt-1">Select items below to push to the target merchant account</p>
+                  <h2 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
+                    <ArrowsClockwise className="text-slate-300" size={20} />
+                    <span>Panel Sinkronisasi Produk</span>
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-1">Centang produk di katalog bawah untuk disinkronkan ke server akun target</p>
                 </div>
                 
-                <div className="flex flex-col sm:flex-row items-center gap-4">
-                  <div className="flex flex-col gap-1 w-full sm:w-auto">
-                    <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">Sync Mode</span>
-                    <div className="flex bg-[#12141d]/80 p-1 border border-white/5 rounded-xl gap-1">
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-300">Mode Sync:</span>
+                    <div className="flex bg-[#0d0e15] p-1 border border-slate-800 rounded-xl gap-1 text-xs font-medium">
                       <button
                         type="button"
                         onClick={() => setSyncMode('both')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                        className={`px-3 py-1.5 rounded-lg transition-all ${
                           syncMode === 'both'
-                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                            : 'text-slate-400 hover:text-white border border-transparent'
+                            ? 'bg-slate-800 text-white font-semibold border border-slate-700 shadow-sm'
+                            : 'text-slate-400 hover:text-white'
                         }`}
                       >
-                        Copy & Price
+                        Copy & Harga
                       </button>
                       <button
                         type="button"
                         onClick={() => setSyncMode('copy')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                        className={`px-3 py-1.5 rounded-lg transition-all ${
                           syncMode === 'copy'
-                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                            : 'text-slate-400 hover:text-white border border-transparent'
+                            ? 'bg-slate-800 text-white font-semibold border border-slate-700 shadow-sm'
+                            : 'text-slate-400 hover:text-white'
                         }`}
                       >
-                        Copy Only
+                        Copy Saja
                       </button>
                       <button
                         type="button"
                         onClick={() => setSyncMode('price')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                        className={`px-3 py-1.5 rounded-lg transition-all ${
                           syncMode === 'price'
-                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                            : 'text-slate-400 hover:text-white border border-transparent'
+                            ? 'bg-slate-800 text-white font-semibold border border-slate-700 shadow-sm'
+                            : 'text-slate-400 hover:text-white'
                         }`}
                       >
-                        Price Only
+                        Harga Saja
                       </button>
                     </div>
                   </div>
@@ -1358,24 +1375,29 @@ export default function App() {
                     type="button"
                     onClick={() => setShowConfirmModal(true)}
                     disabled={isSyncing || selectedIds.size === 0 || !targetToken}
-                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-[#171c26] hover:bg-[#1f2634] text-slate-300 border border-white/10 hover:border-emerald-500/30 hover:text-emerald-400 font-bold text-xs rounded-2xl transition-all duration-200 disabled:opacity-30 disabled:pointer-events-none"
+                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 font-semibold text-xs rounded-xl flex items-center gap-2 transition-all shadow-sm"
                   >
-                    <Play size={14} weight="fill" />
-                    <span>Sync Selected ({selectedIds.size})</span>
+                    <Play size={16} weight="fill" />
+                    <span>Sinkronkan Produk Terpilih ({selectedIds.size})</span>
                   </button>
                 </div>
               </div>
 
               {/* Sync Progress Indicator */}
               {isSyncing && (
-                <div className="mt-6 pt-6 border-t border-white/5 space-y-2">
+                <div className="pt-4 border-t border-slate-800 space-y-2">
                   <div className="flex justify-between text-xs font-mono">
-                    <span className="text-slate-400">Processing: {syncProgress.current} / {syncProgress.total}</span>
-                    <span className="text-emerald-400">Success: {syncProgress.success} | Skipped: {syncProgress.skipped} | Errors: {syncProgress.error}</span>
+                    <span className="text-slate-300 font-semibold flex items-center gap-2">
+                      <ArrowsClockwise size={14} className="animate-spin text-emerald-400" />
+                      Proses: {syncProgress.current} / {syncProgress.total} produk
+                    </span>
+                    <span className="text-emerald-400 font-semibold">
+                      Berhasil: {syncProgress.success} | Skip: {syncProgress.skipped} | Gagal: {syncProgress.error}
+                    </span>
                   </div>
-                  <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+                  <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700">
                     <div 
-                      className="h-full bg-emerald-500 transition-all duration-300"
+                      className="h-full bg-emerald-500 rounded-full transition-all duration-300"
                       style={{ width: `${(syncProgress.current / syncProgress.total) * 100}%` }}
                     ></div>
                   </div>
@@ -1856,19 +1878,63 @@ export default function App() {
                   )}
                 </div>
 
-                {/* Primary Simplified Controls */}
-                <div className="bg-[#12141d]/70 p-5 rounded-2xl border border-white/5 space-y-4">
-                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                    {/* Mode Target Update Harga */}
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                      <span className="text-xs font-bold text-slate-300">Target Update Harga:</span>
-                      <div className="flex items-center bg-[#1a1d29] p-1 rounded-xl border border-white/10 gap-1 text-xs font-semibold">
+                {/* Main Automated Summary & Big Action Card (Monochrome) */}
+                <div className="bg-[#12141e] p-6 rounded-3xl border border-white/10 space-y-6 shadow-xl relative overflow-hidden">
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                    
+                    {/* Left Column: Automated Analysis Summary */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider bg-white/10 text-white px-3 py-1 rounded-full border border-white/20">
+                          Hasil Deteksi Otomatis
+                        </span>
+                      </div>
+                      <h2 className="text-xl font-bold text-white tracking-tight">
+                        {excelMatches.differingCount > 0 ? (
+                          <span className="text-zinc-200">
+                            Ditemukan {excelMatches.differingCount} produk yang perlu di-update harganya
+                          </span>
+                        ) : (
+                          <span className="text-white">
+                            Semua harga produk ({excelMatches.matchingCount}) sudah sesuai dengan Excel!
+                          </span>
+                        )}
+                      </h2>
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 font-medium">
+                        <span>Total Cocok: <strong className="text-white font-mono">{excelMatches.matched.length} produk</strong></span>
+                        <span>•</span>
+                        <span>Dicocokkan Mirip: <strong className="text-slate-200 font-mono">{excelMatches.similarCount} produk</strong></span>
+                        <span>•</span>
+                        <span>Sudah Sesuai: <strong className="text-white font-mono">{excelMatches.matchingCount} produk</strong></span>
+                      </div>
+                    </div>
+
+                    {/* Right Column: Direct One-Click Execution Button */}
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => handleApplyExcelPrices(true, true)}
+                        disabled={excelCheckedUuids.size === 0 || isSyncing}
+                        className="px-8 py-3.5 bg-white hover:bg-zinc-200 text-zinc-950 disabled:opacity-30 text-xs font-bold rounded-xl shadow-md flex items-center justify-center gap-3 active:scale-[0.98] transition-all"
+                      >
+                        <Play size={18} weight="fill" />
+                        <span>UPDATE {excelCheckedUuids.size} PRODUK KE SERVER TARGET</span>
+                      </button>
+                    </div>
+
+                  </div>
+
+                  {/* Simple Update Mode Pills & Advanced Toggle */}
+                  <div className="pt-4 border-t border-slate-800 flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="text-xs font-bold text-slate-300">Pilih Yang Ingin Diupdate:</span>
+                      <div className="flex items-center bg-[#0d0e15] p-1 rounded-xl border border-slate-800 gap-1 text-xs font-medium">
                         <button
                           type="button"
                           onClick={() => setExcelUpdateTarget('both')}
                           className={`px-3.5 py-1.5 rounded-lg transition-all ${
                             excelUpdateTarget === 'both'
-                              ? 'bg-emerald-500 text-[#090a0f] font-bold shadow-lg shadow-emerald-500/20'
+                              ? 'bg-white text-zinc-950 font-bold shadow-sm'
                               : 'text-slate-400 hover:text-white'
                           }`}
                         >
@@ -1879,7 +1945,7 @@ export default function App() {
                           onClick={() => setExcelUpdateTarget('cost_only')}
                           className={`px-3.5 py-1.5 rounded-lg transition-all ${
                             excelUpdateTarget === 'cost_only'
-                              ? 'bg-amber-500 text-[#090a0f] font-bold shadow-lg shadow-amber-500/20'
+                              ? 'bg-white text-zinc-950 font-bold shadow-sm'
                               : 'text-slate-400 hover:text-white'
                           }`}
                         >
@@ -1890,7 +1956,7 @@ export default function App() {
                           onClick={() => setExcelUpdateTarget('sale_only')}
                           className={`px-3.5 py-1.5 rounded-lg transition-all ${
                             excelUpdateTarget === 'sale_only'
-                              ? 'bg-sky-500 text-[#090a0f] font-bold shadow-lg shadow-sky-500/20'
+                              ? 'bg-white text-zinc-950 font-bold shadow-sm'
                               : 'text-slate-400 hover:text-white'
                           }`}
                         >
@@ -1899,125 +1965,104 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* Pencocokan Nama / Fuzzy Match Toggle */}
-                    <div className="flex items-center gap-3">
-                      <label className="flex items-center gap-2 cursor-pointer bg-[#1a1d29] px-3.5 py-2 rounded-xl border border-white/10 text-xs font-semibold text-purple-300 hover:border-purple-500/50 transition-colors">
-                        <input
-                          type="checkbox"
-                          checked={enableFuzzyMatch}
-                          onChange={(e) => setEnableFuzzyMatch(e.target.checked)}
-                          className="w-4 h-4 accent-purple-500 rounded cursor-pointer"
-                        />
-                        <span>Cari Nama Mirip (Fuzzy Match)</span>
-                      </label>
-
-                      {enableFuzzyMatch && (
-                        <select
-                          value={excelFuzzyThreshold}
-                          onChange={(e) => setExcelFuzzyThreshold(parseFloat(e.target.value))}
-                          className="bg-[#1a1d29] border border-purple-500/30 text-purple-200 text-xs font-bold rounded-xl px-3 py-2 focus:outline-none"
-                        >
-                          <option value={0.5} className="bg-[#12141d]">Kemiripan 50% (Fleksibel)</option>
-                          <option value={0.6} className="bg-[#12141d]">Kemiripan 60% (Sedang)</option>
-                          <option value={0.7} className="bg-[#12141d]">Kemiripan 70% (Ketat)</option>
-                          <option value={0.8} className="bg-[#12141d]">Kemiripan 80% (Sangat Ketat)</option>
-                        </select>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Auto-detected Column Mapping (Secondary Row) */}
-                  <div className="pt-3 border-t border-white/5">
-                    <div className="flex items-center justify-between text-[11px] text-slate-400 font-semibold mb-2">
-                      <span>Pemetaan Kolom Excel (Terdeteksi Otomatis)</span>
-                      <span className="text-[10px] text-slate-500 font-mono">Ubah jika kolom Excel tidak sesuai</span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                      <div className="bg-[#12141d] p-2.5 rounded-xl border border-white/5 flex flex-col gap-1">
-                        <span className="text-[10px] text-slate-400 font-semibold">1. Kolom Key Excel:</span>
-                        <select
-                          value={excelKeyColumn}
-                          onChange={(e) => setExcelKeyColumn(e.target.value)}
-                          className="bg-transparent text-white font-medium focus:outline-none text-xs"
-                        >
-                          {excelHeaders.map((h, idx) => (
-                            <option key={`${h}_${idx}`} value={h} className="bg-[#12141d]">{h}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="bg-[#12141d] p-2.5 rounded-xl border border-white/5 flex flex-col gap-1">
-                        <span className="text-[10px] text-slate-400 font-semibold">2. Tipe Key Catalog:</span>
-                        <select
-                          value={excelMatchingField}
-                          onChange={(e) => setExcelMatchingField(e.target.value)}
-                          className="bg-transparent text-white font-medium focus:outline-none text-xs"
-                        >
-                          <option value="goodsCode" className="bg-[#12141d]">Barcode / Kode Produk</option>
-                          <option value="goodsName" className="bg-[#12141d]">Nama Produk</option>
-                        </select>
-                      </div>
-
-                      <div className="bg-[#12141d] p-2.5 rounded-xl border border-emerald-500/20 flex flex-col gap-1">
-                        <span className="text-[10px] text-emerald-400 font-semibold">3. Kolom Harga Jual:</span>
-                        <select
-                          value={excelPriceColumn}
-                          onChange={(e) => setExcelPriceColumn(e.target.value)}
-                          className="bg-transparent text-emerald-300 font-bold focus:outline-none text-xs"
-                        >
-                          <option value="" className="bg-[#12141d]">-- Abaikan --</option>
-                          {excelHeaders.map((h, idx) => (
-                            <option key={`${h}_${idx}`} value={h} className="bg-[#12141d]">{h}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="bg-[#12141d] p-2.5 rounded-xl border border-amber-500/20 flex flex-col gap-1">
-                        <span className="text-[10px] text-amber-400 font-semibold">4. Kolom Modal (HPP):</span>
-                        <select
-                          value={excelCostColumn}
-                          onChange={(e) => setExcelCostColumn(e.target.value)}
-                          className="bg-transparent text-amber-300 font-bold focus:outline-none text-xs"
-                        >
-                          <option value="" className="bg-[#12141d]">-- Abaikan --</option>
-                          {excelHeaders.map((h, idx) => (
-                            <option key={`${h}_${idx}`} value={h} className="bg-[#12141d]">{h}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Summary & Apply Action Bar */}
-                <div className="flex flex-wrap items-center justify-between gap-4 bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/20">
-                  <div className="flex flex-wrap items-center gap-4 text-xs">
-                    <div><span className="text-slate-400">Total Baris: </span><span className="font-bold text-white font-mono">{excelMatches.totalRows}</span></div>
-                    <div className="w-[1px] h-4 bg-white/10 hidden sm:block"></div>
-                    <div>
-                      <span className="text-slate-400">Cocok: </span>
-                      <span className="font-bold text-slate-200 font-mono">{excelMatches.matched.length} Produk </span>
-                      <span className="text-[11px] text-slate-400 font-sans">
-                        ({excelMatches.exactCount} Persis, {excelMatches.similarCount} Mirip)
-                      </span>
-                    </div>
-                    <div className="w-[1px] h-4 bg-white/10 hidden sm:block"></div>
-                    <div><span className="text-amber-400 font-semibold">Belum Sesuai: </span><span className="font-bold text-amber-300 font-mono bg-amber-500/20 px-2 py-0.5 rounded">{excelMatches.differingCount}</span></div>
-                    <div className="w-[1px] h-4 bg-white/10 hidden sm:block"></div>
-                    <div><span className="text-emerald-400 font-semibold">Sudah Sesuai: </span><span className="font-bold text-emerald-300 font-mono bg-emerald-500/20 px-2 py-0.5 rounded">{excelMatches.matchingCount}</span></div>
-                  </div>
-
-                  <div className="flex gap-2">
+                    {/* Collapsible Advanced Settings Button */}
                     <button
                       type="button"
-                      onClick={() => handleApplyExcelPrices(true, true)}
-                      disabled={excelCheckedUuids.size === 0}
-                      className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-[#090a0f] disabled:opacity-40 text-xs font-bold rounded-xl shadow-lg shadow-emerald-500/10 flex items-center gap-2 active:scale-[0.98] transition-all"
+                      onClick={() => setShowExcelAdvanced(prev => !prev)}
+                      className="text-xs text-slate-400 hover:text-white flex items-center gap-1.5 font-semibold py-1.5 px-3 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 transition-all"
                     >
-                      <Play size={14} weight="fill" />
-                      <span>Terapkan & Update Ke Server Target ({excelCheckedUuids.size} Produk)</span>
+                      <Sliders size={14} />
+                      <span>{showExcelAdvanced ? 'Sembunyikan Pengaturan Kolom' : 'Pengaturan Kolom Excel (Opsional)'}</span>
+                      <CaretDown size={12} className={`transition-transform duration-200 ${showExcelAdvanced ? 'rotate-180' : ''}`} />
                     </button>
                   </div>
+
+                  {/* Collapsible Advanced Settings Panel */}
+                  {showExcelAdvanced && (
+                    <div className="pt-4 border-t border-white/5 space-y-4">
+                      <div className="text-xs font-semibold text-slate-300 flex items-center justify-between">
+                        <span>Pengaturan Pemetaan Kolom Excel & Pencocokan</span>
+                        <span className="text-[10px] text-slate-500">Ubah hanya jika deteksi otomatis keliru</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 text-xs">
+                        <div className="bg-[#12141d] p-3 rounded-xl border border-white/5 flex flex-col gap-1">
+                          <span className="text-[10px] text-slate-400 font-semibold">1. Kolom Key Excel:</span>
+                          <select
+                            value={excelKeyColumn}
+                            onChange={(e) => setExcelKeyColumn(e.target.value)}
+                            className="bg-transparent text-white font-medium focus:outline-none text-xs"
+                          >
+                            {excelHeaders.map((h, idx) => (
+                              <option key={`${h}_${idx}`} value={h} className="bg-[#12141d]">{h}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="bg-[#12141d] p-3 rounded-xl border border-white/5 flex flex-col gap-1">
+                          <span className="text-[10px] text-slate-400 font-semibold">2. Tipe Key Catalog:</span>
+                          <select
+                            value={excelMatchingField}
+                            onChange={(e) => setExcelMatchingField(e.target.value)}
+                            className="bg-transparent text-white font-medium focus:outline-none text-xs"
+                          >
+                            <option value="goodsCode" className="bg-[#12141d]">Barcode / Kode Produk</option>
+                            <option value="goodsName" className="bg-[#12141d]">Nama Produk</option>
+                          </select>
+                        </div>
+
+                        <div className="bg-[#12141d] p-3 rounded-xl border border-emerald-500/20 flex flex-col gap-1">
+                          <span className="text-[10px] text-emerald-400 font-semibold">3. Kolom Harga Jual:</span>
+                          <select
+                            value={excelPriceColumn}
+                            onChange={(e) => setExcelPriceColumn(e.target.value)}
+                            className="bg-transparent text-emerald-300 font-bold focus:outline-none text-xs"
+                          >
+                            <option value="" className="bg-[#12141d]">-- Abaikan --</option>
+                            {excelHeaders.map((h, idx) => (
+                              <option key={`${h}_${idx}`} value={h} className="bg-[#12141d]">{h}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="bg-[#12141d] p-3 rounded-xl border border-amber-500/20 flex flex-col gap-1">
+                          <span className="text-[10px] text-amber-400 font-semibold">4. Kolom Modal (HPP):</span>
+                          <select
+                            value={excelCostColumn}
+                            onChange={(e) => setExcelCostColumn(e.target.value)}
+                            className="bg-transparent text-amber-300 font-bold focus:outline-none text-xs"
+                          >
+                            <option value="" className="bg-[#12141d]">-- Abaikan --</option>
+                            {excelHeaders.map((h, idx) => (
+                              <option key={`${h}_${idx}`} value={h} className="bg-[#12141d]">{h}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="bg-[#12141d] p-3 rounded-xl border border-purple-500/20 flex flex-col gap-1">
+                          <span className="text-[10px] text-purple-300 font-semibold">5. Pencocokan Mirip:</span>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="checkbox"
+                              checked={enableFuzzyMatch}
+                              onChange={(e) => setEnableFuzzyMatch(e.target.checked)}
+                              className="w-3.5 h-3.5 accent-purple-500 rounded cursor-pointer"
+                            />
+                            <select
+                              value={excelFuzzyThreshold}
+                              onChange={(e) => setExcelFuzzyThreshold(parseFloat(e.target.value))}
+                              disabled={!enableFuzzyMatch}
+                              className="bg-transparent text-purple-200 text-xs font-bold focus:outline-none disabled:opacity-40"
+                            >
+                              <option value={0.5} className="bg-[#12141d]">50% (Fleksibel)</option>
+                              <option value={0.6} className="bg-[#12141d]">60% (Sedang)</option>
+                              <option value={0.7} className="bg-[#12141d]">70% (Ketat)</option>
+                              <option value={0.8} className="bg-[#12141d]">80% (Sangat Ketat)</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Live Progress Bar Indicator with Detailed Counts */}
@@ -2329,27 +2374,41 @@ export default function App() {
                       </table>
                     </div>
 
-                    {/* Log Console Box on Excel Page */}
-                    <div className="liquid-glass rounded-3xl p-5 border border-white/5 space-y-3 mt-4">
-                      <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
-                        <span>Log Eksekusi Penyesuaian Harga</span>
+                    {/* Collapsible Log Console Box on Excel Page */}
+                    <div className="pt-2">
+                      <div className="flex items-center justify-between text-xs text-slate-400 font-medium py-2 px-1">
                         <button
                           type="button"
-                          onClick={() => setSyncLogs([])}
-                          className="hover:text-white underline text-[11px]"
+                          onClick={() => setShowExcelLogs(prev => !prev)}
+                          className="flex items-center gap-1.5 hover:text-white font-semibold transition-colors"
                         >
-                          Bersihkan Log
+                          <Sliders size={14} />
+                          <span>{showExcelLogs ? 'Sembunyikan Log Eksekusi' : 'Tampilkan Log Eksekusi Server'}</span>
+                          <CaretDown size={12} className={`transition-transform duration-200 ${showExcelLogs ? 'rotate-180' : ''}`} />
                         </button>
-                      </div>
-                      <div className="bg-[#0c0d12] rounded-2xl p-4 h-36 overflow-y-auto font-mono text-[11px] text-slate-400 space-y-1 scrollbar-thin border border-white/5">
-                        {syncLogs.length === 0 ? (
-                          <div className="text-slate-600 italic">Belum ada aktivitas eksekusi...</div>
-                        ) : (
-                          syncLogs.map((log, index) => (
-                            <div key={index} className="leading-relaxed">{log}</div>
-                          ))
+
+                        {showExcelLogs && syncLogs.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setSyncLogs([])}
+                            className="hover:text-white underline text-[11px]"
+                          >
+                            Bersihkan Log
+                          </button>
                         )}
                       </div>
+
+                      {showExcelLogs && (
+                        <div className="bg-[#0c0d12] rounded-2xl p-4 h-36 overflow-y-auto font-mono text-[11px] text-slate-400 space-y-1 scrollbar-thin border border-white/5 mt-2 animate-fadeIn">
+                          {syncLogs.length === 0 ? (
+                            <div className="text-slate-600 italic">Belum ada aktivitas eksekusi...</div>
+                          ) : (
+                            syncLogs.map((log, index) => (
+                              <div key={index} className="leading-relaxed">{log}</div>
+                            ))
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
