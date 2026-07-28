@@ -9,6 +9,7 @@ const os = require('os');
 const mainService = require('./services/main');
 const itspcService = require('./services/itspc');
 const grabotechService = require('./services/grabotech');
+const yyvendorService = require('./services/yyvendor');
 const common = require('./services/common');
 
 const app = express();
@@ -38,6 +39,10 @@ app.post('/api/login', async (req, res) => {
   }
 
   try {
+    if (type === 'yyvendor') {
+      const result = await yyvendorService.login(userAccount, userPwd);
+      return res.json(result);
+    }
     if (type === 'grabotech') {
       const { sessionCookie, vifCode } = req.body;
       const result = await grabotechService.login(userAccount, userPwd, sessionCookie, vifCode);
@@ -66,6 +71,10 @@ app.post('/api/goods', async (req, res) => {
   }
 
   try {
+    if (type === 'yyvendor') {
+      const result = await yyvendorService.fetchGoods(token);
+      return res.json(result);
+    }
     if (type === 'grabotech') {
       const result = await grabotechService.fetchGoods(token);
       return res.json(result);
@@ -87,14 +96,18 @@ app.post('/api/goods', async (req, res) => {
 
 // 3. Sync single item endpoint
 app.post('/api/sync-item', async (req, res) => {
-  const { targetToken, targetUserUuid, good, mode = 'copy', targetType = 'main' } = req.body;
+  const { targetToken, targetUserUuid, good, mode = 'copy', targetType = 'main', targetCategory } = req.body;
   if (!targetToken || !good) {
     return res.status(400).json({ error: 'targetToken and good object are required' });
   }
 
   try {
+    if (targetType === 'yyvendor') {
+      const result = await yyvendorService.syncItem(targetToken, good, mode, targetCategory);
+      return res.json(result);
+    }
     if (targetType === 'grabotech') {
-      const result = await grabotechService.syncItem(targetToken, good, mode);
+      const result = await grabotechService.syncItem(targetToken, good, mode, targetCategory);
       return res.json(result);
     }
     if (targetType === 'itspc') {
@@ -109,6 +122,66 @@ app.post('/api/sync-item', async (req, res) => {
       success: false,
       error: err.message
     });
+  }
+});
+
+// 3b. Grabotech Fetch Categories endpoint
+app.post('/api/grabotech-categories', async (req, res) => {
+  const { token } = req.body;
+  if (!token) {
+    return res.status(400).json({ error: 'token is required' });
+  }
+  try {
+    const result = await grabotechService.fetchCategories(token);
+    return res.json(result);
+  } catch (err) {
+    console.error('Fetch categories error:', err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 3c. Grabotech Add Category endpoint
+app.post('/api/grabotech-add-category', async (req, res) => {
+  const { token, categoryName, businessType = 'Finished Product' } = req.body;
+  if (!token || !categoryName) {
+    return res.status(400).json({ error: 'token and categoryName are required' });
+  }
+  try {
+    const result = await grabotechService.createCategory(token, categoryName, businessType);
+    return res.json(result);
+  } catch (err) {
+    console.error('Create category error:', err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 3d. YYVendor Fetch Categories endpoint
+app.post('/api/yyvendor-categories', async (req, res) => {
+  const { token } = req.body;
+  if (!token) {
+    return res.status(400).json({ error: 'token is required' });
+  }
+  try {
+    const categories = await yyvendorService.getYyvendorCategories(token);
+    return res.json({ success: true, categories });
+  } catch (err) {
+    console.error('Fetch YYVendor categories error:', err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 3e. YYVendor Add Category endpoint
+app.post('/api/yyvendor-add-category', async (req, res) => {
+  const { token, categoryName } = req.body;
+  if (!token || !categoryName) {
+    return res.status(400).json({ error: 'token and categoryName are required' });
+  }
+  try {
+    const result = await yyvendorService.createYyvendorCategory(token, categoryName);
+    return res.json({ success: true, result });
+  } catch (err) {
+    console.error('Create YYVendor category error:', err.message);
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 
