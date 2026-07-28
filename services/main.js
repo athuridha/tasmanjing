@@ -81,13 +81,23 @@ async function fetchGoods(token, type) {
     const response = await axios.get(url, { headers });
     
     if (response.data && response.data.result === 'true') {
-      const goodsPage = response.data.data ? response.data.data.data : [];
+      const rawData = response.data.data;
+      let goodsPage = [];
+      if (Array.isArray(rawData)) {
+        goodsPage = rawData;
+      } else if (rawData && Array.isArray(rawData.data)) {
+        goodsPage = rawData.data;
+      } else if (rawData && Array.isArray(rawData.list)) {
+        goodsPage = rawData.list;
+      } else if (rawData && Array.isArray(rawData.records)) {
+        goodsPage = rawData.records;
+      }
       allGoods = allGoods.concat(goodsPage);
       
-      totalCount = response.data.pageBean ? response.data.pageBean.pageDataCount : 0;
+      totalCount = response.data.pageBean ? (response.data.pageBean.pageDataCount || response.data.pageBean.totalCount || 0) : allGoods.length;
       console.log(`Page ${pageNo} returned ${goodsPage.length} items. Total count reported: ${totalCount}`);
       
-      if (goodsPage.length === 0 || allGoods.length >= totalCount) {
+      if (goodsPage.length === 0 || (totalCount > 0 && allGoods.length >= totalCount)) {
         break;
       }
       pageNo++;

@@ -186,8 +186,17 @@ async function fetchGoods(token) {
     console.log(`Fetching ITSPC goods page ${pageNo} (pageSize: ${pageSize})...`);
     const response = await axios.get(url, { headers, params });
 
-    if (response.data && response.data.code === 200) {
-      const rows = response.data.rows || [];
+      const rawData = response.data;
+      let rows = [];
+      if (Array.isArray(rawData.rows)) {
+        rows = rawData.rows;
+      } else if (rawData.data && Array.isArray(rawData.data)) {
+        rows = rawData.data;
+      } else if (rawData.data && Array.isArray(rawData.data.rows)) {
+        rows = rawData.data.rows;
+      } else if (rawData.data && Array.isArray(rawData.data.records)) {
+        rows = rawData.data.records;
+      }
       const mappedPage = rows.map(row => {
         const info = row.goodsInfoVo || {};
         const sub = row.goodsSubInfoVo || {};

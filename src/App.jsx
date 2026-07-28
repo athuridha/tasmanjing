@@ -246,7 +246,7 @@ export default function App() {
   };
 
   // --- HANDLERS: FETCH GOODS ---
-  const fetchGoods = async (token = sourceToken) => {
+  const fetchGoods = async (token = sourceToken, portalType = sourceType) => {
     if (!token) return;
     setIsFetchingGoods(true);
     setGoodsFetchError('');
@@ -254,7 +254,7 @@ export default function App() {
       const response = await fetch('/api/goods', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, type: sourceType })
+        body: JSON.stringify({ token, type: portalType })
       });
       const data = await response.json();
       if (response.ok && data.success) {
@@ -264,23 +264,26 @@ export default function App() {
         setSelectedIds(new Set());
         addLog(`Loaded ${goodsList.length} goods from Source account.`);
       } else {
-        setGoodsFetchError(data.error || 'Failed to fetch Source goods');
+        const errMsg = data.error || 'Failed to fetch Source goods';
+        setGoodsFetchError(errMsg);
+        addLog(`Error: ${errMsg}`);
       }
     } catch (err) {
-      setGoodsFetchError('Server error while fetching Source goods');
+      setGoodsFetchError('Server error while fetching Source goods: ' + err.message);
+      addLog(`Error: Network error fetching Source goods`);
     } finally {
       setIsFetchingGoods(false);
     }
   };
 
-  const fetchTargetGoods = async (token = targetToken) => {
+  const fetchTargetGoods = async (token = targetToken, portalType = targetType) => {
     if (!token) return;
     setIsLoadingTargetGoods(true);
     try {
       const response = await fetch('/api/goods', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, type: targetType })
+        body: JSON.stringify({ token, type: portalType })
       });
       const data = await response.json();
       if (response.ok && data.success) {
