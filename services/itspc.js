@@ -186,6 +186,7 @@ async function fetchGoods(token) {
     console.log(`Fetching ITSPC goods page ${pageNo} (pageSize: ${pageSize})...`);
     const response = await axios.get(url, { headers, params });
 
+    if (response.data && response.data.code === 200) {
       const rawData = response.data;
       let rows = [];
       if (Array.isArray(rawData.rows)) {
