@@ -33,7 +33,7 @@ export default function App() {
   const [activeNavTab, setActiveNavTab] = useState('sync');
 
   // --- SOURCE ACCOUNT STATE ---
-  const [sourceType, setSourceType] = useState('main'); // 'main' (VM Oren), 'itspc' (VM Putih), 'grabotech' (Grabotech), 'yyvendor' (Yunyin)
+  const [sourceType, setSourceType] = useState('main'); // 'main' (VM Putih), 'itspc' (VM Oren), 'grabotech' (Grabotech), 'yyvendor' (Yunyin)
   const [sourceAccount, setSourceAccount] = useState('');
   const [sourcePwd, setSourcePwd] = useState('');
   const [sourceToken, setSourceToken] = useState('');
@@ -75,7 +75,7 @@ export default function App() {
   }, [sourceType]);
 
   // --- TARGET ACCOUNT STATE ---
-  const [targetType, setTargetType] = useState('main'); // Default to VM Oren ('main')
+  const [targetType, setTargetType] = useState('main'); // Default to VM Putih ('main')
   const [targetAccount, setTargetAccount] = useState('');
   const [targetPwd, setTargetPwd] = useState('');
   const [targetToken, setTargetToken] = useState('');
@@ -126,6 +126,8 @@ export default function App() {
 
   const [activeCatalogTab, setActiveCatalogTab] = useState('source'); // 'source' or 'target'
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const [customLimit, setCustomLimit] = useState('');
+  const [activeLimitPreset, setActiveLimitPreset] = useState(null); // 10, 50, 100, 200, 500, 'all', 'custom', or null
 
   // Search & Category Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -424,6 +426,18 @@ export default function App() {
       else next.add(uuid);
       return next;
     });
+  };
+
+  const handleSelectByLimit = (count) => {
+    const limit = parseInt(count, 10);
+    if (isNaN(limit) || limit <= 0) {
+      setSelectedIds(new Set());
+      setActiveLimitPreset(null);
+      return;
+    }
+    const selectedSlice = filteredGoods.slice(0, limit);
+    setSelectedIds(new Set(selectedSlice.map(g => g.uuid)));
+    setActiveLimitPreset(limit);
   };
 
   // --- HANDLERS: SYNC GOODS TO TARGET ---
@@ -1041,7 +1055,7 @@ export default function App() {
                           : 'text-slate-400 hover:text-white'
                       }`}
                     >
-                      VM Oren
+                      VM Putih
                     </button>
                     <button
                       type="button"
@@ -1053,7 +1067,7 @@ export default function App() {
                           : 'text-slate-400 hover:text-white'
                       }`}
                     >
-                      VM Putih
+                      VM Oren
                     </button>
                     {!isVercel && (
                       <button
@@ -1195,7 +1209,7 @@ export default function App() {
                           : 'text-slate-400 hover:text-white'
                       }`}
                     >
-                      VM Oren
+                      VM Putih
                     </button>
                     <button
                       type="button"
@@ -1207,7 +1221,7 @@ export default function App() {
                           : 'text-slate-400 hover:text-white'
                       }`}
                     >
-                      VM Putih
+                      VM Oren
                     </button>
                     {!isVercel && (
                       <button
@@ -1375,11 +1389,103 @@ export default function App() {
                     type="button"
                     onClick={() => setShowConfirmModal(true)}
                     disabled={isSyncing || selectedIds.size === 0 || !targetToken}
-                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 font-semibold text-xs rounded-xl flex items-center gap-2 transition-all shadow-sm"
+                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 font-semibold text-xs rounded-xl flex items-center gap-2 transition-all shadow-sm active:scale-[0.98]"
                   >
                     <Play size={16} weight="fill" />
                     <span>Sinkronkan Produk Terpilih ({selectedIds.size})</span>
                   </button>
+                </div>
+              </div>
+
+              {/* Quick Product Limit / Batch Selection Controls */}
+              <div className="pt-4 border-t border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Sliders size={16} className="text-emerald-400 shrink-0" />
+                  <span className="text-xs font-bold text-slate-200">Mau Up Berapa Product:</span>
+                  {selectedIds.size > 0 && (
+                    <span className="text-[11px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20 font-semibold">
+                      Terpilih: {selectedIds.size} / {filteredGoods.length}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  {[10, 50, 100, 200, 500].map((num) => {
+                    const isSelected = activeLimitPreset === num && selectedIds.size === Math.min(num, filteredGoods.length);
+                    return (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => {
+                          handleSelectByLimit(num);
+                          setCustomLimit('');
+                        }}
+                        className={`px-3 py-1.5 rounded-xl font-semibold transition-all active:scale-[0.98] ${
+                          isSelected
+                            ? 'bg-emerald-500 text-[#090a0f] font-bold border border-emerald-400 shadow-md shadow-emerald-500/20'
+                            : 'bg-[#0d0e15] hover:bg-slate-800 text-slate-300 border border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        {num === 10 ? '10 doang' : `${num}`}
+                      </button>
+                    );
+                  })}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSelectAll({ target: { checked: true } });
+                      setActiveLimitPreset('all');
+                      setCustomLimit('');
+                    }}
+                    className={`px-3 py-1.5 rounded-xl font-semibold transition-all active:scale-[0.98] ${
+                      activeLimitPreset === 'all' || (filteredGoods.length > 0 && selectedIds.size === filteredGoods.length)
+                        ? 'bg-emerald-500 text-[#090a0f] font-bold border border-emerald-400 shadow-md shadow-emerald-500/20'
+                        : 'bg-[#0d0e15] hover:bg-slate-800 text-slate-300 border border-slate-800 hover:border-slate-700'
+                    }`}
+                  >
+                    Semua ({filteredGoods.length})
+                  </button>
+
+                  {/* Custom Input Box */}
+                  <div className={`flex items-center gap-1.5 bg-[#0d0e15] border rounded-xl px-2.5 py-1 transition-all ${
+                    activeLimitPreset === 'custom' ? 'border-emerald-500 ring-1 ring-emerald-500/30' : 'border-slate-800 hover:border-slate-700'
+                  }`}>
+                    <span className="text-[11px] text-slate-400 font-semibold">Custom:</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max={filteredGoods.length || 9999}
+                      placeholder="Jumlah"
+                      value={customLimit}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCustomLimit(val);
+                        if (val && !isNaN(val) && Number(val) > 0) {
+                          handleSelectByLimit(Number(val));
+                          setActiveLimitPreset('custom');
+                        } else if (val === '') {
+                          setSelectedIds(new Set());
+                          setActiveLimitPreset(null);
+                        }
+                      }}
+                      className="w-16 bg-transparent text-emerald-400 font-bold text-xs focus:outline-none placeholder-slate-600 font-mono"
+                    />
+                  </div>
+
+                  {selectedIds.size > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedIds(new Set());
+                        setActiveLimitPreset(null);
+                        setCustomLimit('');
+                      }}
+                      className="px-2.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl text-[11px] font-semibold transition-all active:scale-[0.98]"
+                    >
+                      Reset
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1746,8 +1852,8 @@ export default function App() {
                     onChange={(e) => setTargetType(e.target.value)}
                     className="w-full bg-[#12141d] border border-white/10 rounded-xl px-3 py-2.5 text-white focus:outline-none font-medium"
                   >
-                    <option value="main">VM Oren (SANY POS)</option>
-                    <option value="itspc">VM Putih (ITSPC)</option>
+                    <option value="main">VM Putih (SANY POS)</option>
+                    <option value="itspc">VM Oren (ITSPC)</option>
                     {!isVercel && <option value="grabotech">Grabotech</option>}
                     <option value="yyvendor">Yunyin</option>
                   </select>
@@ -2444,7 +2550,7 @@ export default function App() {
                 <div className="flex justify-between items-center">
                   <span className="text-slate-400 text-xs">Target Portal:</span>
                   <span className="font-bold text-sky-400 text-xs bg-sky-500/10 px-2.5 py-1 rounded-lg border border-sky-500/20">
-                    {targetType === 'grabotech' ? 'Grabotech' : targetType === 'itspc' ? 'VM Putih' : targetType === 'yyvendor' ? 'Yunyin' : 'VM Oren'}
+                    {targetType === 'grabotech' ? 'Grabotech' : targetType === 'itspc' ? 'VM Oren' : targetType === 'yyvendor' ? 'Yunyin' : 'VM Putih'}
                   </span>
                 </div>
 
