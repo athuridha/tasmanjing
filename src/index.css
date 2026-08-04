@@ -11,7 +11,7 @@
   }
 
   html.dark body {
-    background-color: #0B0C10;
+    background-color: #08090D;
     color: #F1F5F9;
   }
 }
@@ -47,33 +47,68 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   background: #475569;
 }
 
-/* BankDash Card System */
-.bankdash-card {
-  background: #FFFFFF;
-  border: 1px solid #E6EFF5;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+/* Ambient Background Blobs & Glows */
+.ambient-glow-purple {
+  position: absolute;
+  width: 450px;
+  height: 450px;
+  background: radial-gradient(circle, rgba(77, 71, 195, 0.12) 0%, rgba(77, 71, 195, 0) 70%);
+  top: -100px;
+  left: 10%;
+  pointer-events: none;
+  z-index: 0;
 }
 
-html.dark .bankdash-card {
-  background: #12151E;
-  border: 1px solid #1E2330;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+.ambient-glow-cyan {
+  position: absolute;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(22, 219, 204, 0.1) 0%, rgba(22, 219, 204, 0) 70%);
+  top: 150px;
+  right: 5%;
+  pointer-events: none;
+  z-index: 0;
 }
 
+html.dark .ambient-glow-purple {
+  background: radial-gradient(circle, rgba(77, 71, 195, 0.22) 0%, rgba(77, 71, 195, 0) 70%);
+}
+
+html.dark .ambient-glow-cyan {
+  background: radial-gradient(circle, rgba(22, 219, 204, 0.15) 0%, rgba(22, 219, 204, 0) 70%);
+}
+
+/* Glassmorphism Inner Refraction */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(230, 239, 245, 0.9);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 10px 30px rgba(0, 0, 0, 0.03);
+}
+
+html.dark .glass-panel {
+  background: rgba(18, 21, 30, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+/* Card System & Micro-Interactions */
 .bankdash-card-hover {
-  transition: all 0.2s ease-in-out;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .bankdash-card-hover:hover {
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
-  transform: translateY(-2px);
+  transform: translateY(-3px);
+  box-shadow: 0 16px 36px rgba(77, 71, 195, 0.08);
 }
 
 html.dark .bankdash-card-hover:hover {
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5);
 }
 
-/* Smooth Transitions */
 .spring-transition {
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -81,12 +116,12 @@ html.dark .bankdash-card-hover:hover {
 /* Status Pulse Animation */
 @keyframes status-pulse {
   0%, 100% {
-    opacity: 0.5;
+    opacity: 0.6;
     transform: scale(0.95);
   }
   50% {
     opacity: 1;
-    transform: scale(1.05);
+    transform: scale(1.1);
   }
 }
 

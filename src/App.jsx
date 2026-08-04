@@ -22,7 +22,8 @@ import {
   Sliders,
   CaretDown,
   Sun,
-  Moon
+  Moon,
+  List
 } from '@phosphor-icons/react';
 
 export default function App() {
@@ -34,6 +35,9 @@ export default function App() {
 
   // Active Top Navigation Tab: 'sync' (Halaman Utama / Vercel layout) | 'excel' (Penyesuaian Harga Excel)
   const [activeNavTab, setActiveNavTab] = useState('sync');
+
+  // Sidebar Collapse state
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Dark Mode Theme State
   const [darkMode, setDarkMode] = useState(() => {
@@ -1004,83 +1008,97 @@ export default function App() {
   }, [goods, targetGoods, searchQuery, selectedCategory, activeCatalogTab]);
 
   return (
-    <div className={`min-h-[100dvh] pb-12 flex flex-col font-sans transition-colors duration-300 ${darkMode ? 'bg-[#0B0C10] text-[#F1F5F9]' : 'bg-[#F5F7FA] text-[#23272E]'}`}>
-      {/* Top Header Bar */}
-      <header className={`border-b py-4 px-6 md:px-12 sticky top-0 z-40 transition-colors duration-300 ${darkMode ? 'bg-[#12151E] border-slate-800 shadow-[0_4px_25px_rgba(0,0,0,0.4)]' : 'bg-white border-[#E6EFF5] shadow-[0_4px_25px_rgba(0,0,0,0.03)]'}`}>
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className={`min-h-[100dvh] pb-12 flex flex-col font-sans transition-colors duration-300 relative overflow-x-hidden ${darkMode ? 'bg-[#08090D] text-[#F1F5F9]' : 'bg-[#F5F7FA] text-[#23272E]'}`}>
+      {/* Background Ambient Glow Effects */}
+      <div className="ambient-glow-purple"></div>
+      <div className="ambient-glow-cyan"></div>
+
+      {/* Top Header Navigation Bar */}
+      <header className={`border-b sticky top-0 z-50 backdrop-blur-xl transition-all duration-300 ${
+        darkMode 
+          ? 'bg-[#08090D]/90 border-slate-800/80 shadow-[0_4px_30px_rgba(0,0,0,0.5)]' 
+          : 'bg-white/90 border-[#E6EFF5] shadow-[0_4px_25px_rgba(0,0,0,0.03)]'
+      }`}>
+        <div className="max-w-7xl mx-auto px-6 md:px-12 h-16 flex items-center justify-between gap-6">
           
+          {/* Brand Logo & Studio Name */}
           <div className="flex items-center gap-3">
-            <div className="bg-[#4D47C3] p-2.5 rounded-2xl text-white shadow-md shadow-[#4D47C3]/20">
-              <Database size={24} />
+            <div className="h-10 w-10 rounded-2xl bg-gradient-to-tr from-[#4D47C3] via-[#5C54E5] to-[#396AFF] flex items-center justify-center text-white shadow-md shadow-[#4D47C3]/25 shrink-0">
+              <Database size={20} weight="bold" />
             </div>
             <div>
-              <h1 className={`text-lg font-extrabold tracking-tight leading-none ${darkMode ? 'text-white' : 'text-[#343C6A]'}`}>IT AUTOMATION</h1>
-              <p className={`text-xs mt-1 font-medium ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>Goods Sync Automation</p>
+              <div className="flex items-center gap-2">
+                <h1 className={`text-base font-black tracking-tight leading-none ${darkMode ? 'text-white' : 'text-[#1E2238]'}`}>
+                  AMAR IT
+                </h1>
+                <span className="h-2 w-2 rounded-full bg-[#16DBCC] animate-status-pulse" title="System Active"></span>
+              </div>
+              <p className={`text-[11px] font-medium mt-0.5 ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>
+                Goods Sync & Price Studio
+              </p>
             </div>
           </div>
 
-          {/* Top Page Navigation Switcher & Dark Mode Toggle */}
-          <div className="flex items-center gap-3">
-            <div className={`flex items-center p-1.5 rounded-2xl border gap-1.5 text-xs font-medium ${darkMode ? 'bg-[#090A0F] border-slate-800' : 'bg-[#F4F5F7] border-slate-200'}`}>
-              <button
-                type="button"
-                onClick={() => setActiveNavTab('sync')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
-                  activeNavTab === 'sync'
-                    ? 'bg-[#4D47C3] text-white font-bold shadow-md shadow-[#4D47C3]/20'
-                    : darkMode ? 'text-slate-400 hover:text-white' : 'text-[#718EBF] hover:text-[#343C6A]'
-                }`}
-              >
-                <Copy size={16} />
-                <span>Halaman Utama (Copy & Sync)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveNavTab('excel')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
-                  activeNavTab === 'excel'
-                    ? 'bg-[#4D47C3] text-white font-bold shadow-md shadow-[#4D47C3]/20'
-                    : darkMode ? 'text-slate-400 hover:text-white' : 'text-[#718EBF] hover:text-[#343C6A]'
-                }`}
-              >
-                <Coins size={16} />
-                <span>Penyesuaian Harga Excel</span>
-                <span className={`text-[9px] uppercase px-1.5 py-0.5 rounded-full font-extrabold border ${darkMode ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-emerald-100 text-emerald-700 border-emerald-300'}`}>
-                  Baru
-                </span>
-              </button>
-            </div>
+          {/* Vercel-Style Segmented Navigation Pills */}
+          <nav className={`flex items-center p-1 rounded-2xl border text-xs font-semibold shadow-inner ${
+            darkMode ? 'bg-[#12151E] border-slate-800' : 'bg-[#F4F5F7] border-slate-200'
+          }`}>
+            <button
+              type="button"
+              onClick={() => setActiveNavTab('sync')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-200 ${
+                activeNavTab === 'sync'
+                  ? 'bg-[#4D47C3] text-white font-bold shadow-md shadow-[#4D47C3]/30 scale-[1.02]'
+                  : darkMode 
+                    ? 'text-slate-400 hover:text-white hover:bg-slate-800/50' 
+                    : 'text-[#718EBF] hover:text-[#1E2238] hover:bg-slate-200/50'
+              }`}
+            >
+              <Copy size={16} weight={activeNavTab === 'sync' ? 'bold' : 'regular'} />
+              <span>Sinkronisasi Produk</span>
+            </button>
 
-            {/* Dark Mode Toggle Button */}
+            <button
+              type="button"
+              onClick={() => setActiveNavTab('excel')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-200 ${
+                activeNavTab === 'excel'
+                  ? 'bg-[#4D47C3] text-white font-bold shadow-md shadow-[#4D47C3]/30 scale-[1.02]'
+                  : darkMode 
+                    ? 'text-slate-400 hover:text-white hover:bg-slate-800/50' 
+                    : 'text-[#718EBF] hover:text-[#1E2238] hover:bg-slate-200/50'
+              }`}
+            >
+              <Coins size={16} weight={activeNavTab === 'excel' ? 'bold' : 'regular'} />
+              <span>Harga Excel</span>
+              <span className="text-[9px] uppercase px-1.5 py-0.2 bg-[#16DBCC]/20 text-[#16DBCC] font-mono font-extrabold rounded-md border border-[#16DBCC]/30">
+                NEW
+              </span>
+            </button>
+          </nav>
+
+          {/* Right Action Tools (Dark Mode Toggle & Operator Badge) */}
+          <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => setDarkMode(prev => !prev)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-2xl text-xs font-bold transition-all border ${
+              className={`p-2.5 rounded-2xl text-xs font-bold transition-all border flex items-center justify-center ${
                 darkMode
-                  ? 'bg-[#1C202D] text-amber-300 border-slate-700 hover:bg-[#252A3B] shadow-sm'
-                  : 'bg-[#F4F5F7] text-[#343C6A] border-slate-200 hover:bg-slate-200 shadow-sm'
+                  ? 'bg-[#12151E] text-amber-300 border-slate-800 hover:bg-[#1E2330] shadow-sm'
+                  : 'bg-[#F4F5F7] text-[#4D47C3] border-slate-200 hover:bg-slate-200 shadow-sm'
               }`}
               title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
             >
               {darkMode ? <Sun size={18} className="text-amber-400" /> : <Moon size={18} className="text-[#4D47C3]" />}
-              <span className="hidden sm:inline">{darkMode ? 'Light' : 'Dark'}</span>
             </button>
+
+            <div className={`h-9 w-9 rounded-2xl border flex items-center justify-center font-bold text-xs shrink-0 shadow-sm ${
+              darkMode ? 'bg-[#12151E] border-slate-800 text-slate-200' : 'bg-[#F4F5F7] border-slate-200 text-[#343C6A]'
+            }`}>
+              OP
+            </div>
           </div>
 
-          <div className="hidden lg:flex items-center gap-3 text-xs font-mono">
-            {sourceToken && (
-              <span className="flex items-center gap-1.5 bg-[#E7F8F0] dark:bg-[#16DBCC]/10 text-[#16DBCC] font-bold px-3 py-1 rounded-full border border-[#16DBCC]/30">
-                <span className="h-2 w-2 rounded-full bg-[#16DBCC] animate-status-pulse"></span>
-                Source Connected
-              </span>
-            )}
-            {targetToken && (
-              <span className="flex items-center gap-1.5 bg-[#E8EFFC] dark:bg-[#396AFF]/10 text-[#396AFF] font-bold px-3 py-1 rounded-full border border-[#396AFF]/30">
-                <span className="h-2 w-2 rounded-full bg-[#396AFF] animate-status-pulse"></span>
-                Target Connected
-              </span>
-            )}
-          </div>
         </div>
       </header>
 
