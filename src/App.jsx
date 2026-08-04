@@ -20,7 +20,9 @@ import {
   Percent,
   Tag,
   Sliders,
-  CaretDown
+  CaretDown,
+  Sun,
+  Moon
 } from '@phosphor-icons/react';
 
 export default function App() {
@@ -32,6 +34,23 @@ export default function App() {
 
   // Active Top Navigation Tab: 'sync' (Halaman Utama / Vercel layout) | 'excel' (Penyesuaian Harga Excel)
   const [activeNavTab, setActiveNavTab] = useState('sync');
+
+  // Dark Mode Theme State
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('theme_mode') === 'dark';
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('theme_mode', darkMode ? 'dark' : 'light');
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode]);
 
   // --- SOURCE ACCOUNT STATE ---
   const [sourceType, setSourceType] = useState('main'); // 'main' (VM Putih), 'itspc' (VM Oren), 'grabotech' (Grabotech), 'yyvendor' (Yunyin)
@@ -985,62 +1004,79 @@ export default function App() {
   }, [goods, targetGoods, searchQuery, selectedCategory, activeCatalogTab]);
 
   return (
-    <div className="min-h-[100dvh] pb-12 flex flex-col font-sans bg-[#090a0f] text-white">
+    <div className={`min-h-[100dvh] pb-12 flex flex-col font-sans transition-colors duration-300 ${darkMode ? 'bg-[#0B0C10] text-[#F1F5F9]' : 'bg-[#F5F7FA] text-[#23272E]'}`}>
       {/* Top Header Bar */}
-      <header className="border-b border-slate-800 py-4 px-6 md:px-12 liquid-glass sticky top-0 z-40">
+      <header className={`border-b py-4 px-6 md:px-12 sticky top-0 z-40 transition-colors duration-300 ${darkMode ? 'bg-[#12151E] border-slate-800 shadow-[0_4px_25px_rgba(0,0,0,0.4)]' : 'bg-white border-[#E6EFF5] shadow-[0_4px_25px_rgba(0,0,0,0.03)]'}`}>
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
           
           <div className="flex items-center gap-3">
-            <div className="bg-slate-800 p-2.5 rounded-2xl border border-slate-700 text-slate-200">
+            <div className="bg-[#4D47C3] p-2.5 rounded-2xl text-white shadow-md shadow-[#4D47C3]/20">
               <Database size={24} />
             </div>
             <div>
-              <h1 className="text-lg font-bold tracking-tight text-white leading-none">IT AUTOMATION</h1>
-              <p className="text-xs text-slate-400 mt-1">Goods Sync Automation</p>
+              <h1 className={`text-lg font-extrabold tracking-tight leading-none ${darkMode ? 'text-white' : 'text-[#343C6A]'}`}>IT AUTOMATION</h1>
+              <p className={`text-xs mt-1 font-medium ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>Goods Sync Automation</p>
             </div>
           </div>
 
-          {/* Top Page Navigation Switcher */}
-          <div className="flex items-center bg-[#0d0e15] p-1.5 rounded-2xl border border-slate-800 gap-1.5 text-xs font-medium">
+          {/* Top Page Navigation Switcher & Dark Mode Toggle */}
+          <div className="flex items-center gap-3">
+            <div className={`flex items-center p-1.5 rounded-2xl border gap-1.5 text-xs font-medium ${darkMode ? 'bg-[#090A0F] border-slate-800' : 'bg-[#F4F5F7] border-slate-200'}`}>
+              <button
+                type="button"
+                onClick={() => setActiveNavTab('sync')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
+                  activeNavTab === 'sync'
+                    ? 'bg-[#4D47C3] text-white font-bold shadow-md shadow-[#4D47C3]/20'
+                    : darkMode ? 'text-slate-400 hover:text-white' : 'text-[#718EBF] hover:text-[#343C6A]'
+                }`}
+              >
+                <Copy size={16} />
+                <span>Halaman Utama (Copy & Sync)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveNavTab('excel')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
+                  activeNavTab === 'excel'
+                    ? 'bg-[#4D47C3] text-white font-bold shadow-md shadow-[#4D47C3]/20'
+                    : darkMode ? 'text-slate-400 hover:text-white' : 'text-[#718EBF] hover:text-[#343C6A]'
+                }`}
+              >
+                <Coins size={16} />
+                <span>Penyesuaian Harga Excel</span>
+                <span className={`text-[9px] uppercase px-1.5 py-0.5 rounded-full font-extrabold border ${darkMode ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-emerald-100 text-emerald-700 border-emerald-300'}`}>
+                  Baru
+                </span>
+              </button>
+            </div>
+
+            {/* Dark Mode Toggle Button */}
             <button
               type="button"
-              onClick={() => setActiveNavTab('sync')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
-                activeNavTab === 'sync'
-                  ? 'bg-slate-800 text-white font-semibold border border-slate-700 shadow-sm'
-                  : 'text-slate-400 hover:text-white'
+              onClick={() => setDarkMode(prev => !prev)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-2xl text-xs font-bold transition-all border ${
+                darkMode
+                  ? 'bg-[#1C202D] text-amber-300 border-slate-700 hover:bg-[#252A3B] shadow-sm'
+                  : 'bg-[#F4F5F7] text-[#343C6A] border-slate-200 hover:bg-slate-200 shadow-sm'
               }`}
+              title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
             >
-              <Copy size={16} />
-              <span>Halaman Utama (Copy & Sync Goods)</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveNavTab('excel')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
-                activeNavTab === 'excel'
-                  ? 'bg-slate-800 text-white font-semibold border border-slate-700 shadow-sm'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Coins size={16} />
-              <span>Penyesuaian Harga Excel</span>
-              <span className="text-[9px] uppercase px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
-                Baru
-              </span>
+              {darkMode ? <Sun size={18} className="text-amber-400" /> : <Moon size={18} className="text-[#4D47C3]" />}
+              <span className="hidden sm:inline">{darkMode ? 'Light' : 'Dark'}</span>
             </button>
           </div>
 
           <div className="hidden lg:flex items-center gap-3 text-xs font-mono">
             {sourceToken && (
-              <span className="flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-full border border-emerald-500/20">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-status-pulse"></span>
+              <span className="flex items-center gap-1.5 bg-[#E7F8F0] dark:bg-[#16DBCC]/10 text-[#16DBCC] font-bold px-3 py-1 rounded-full border border-[#16DBCC]/30">
+                <span className="h-2 w-2 rounded-full bg-[#16DBCC] animate-status-pulse"></span>
                 Source Connected
               </span>
             )}
             {targetToken && (
-              <span className="flex items-center gap-1.5 bg-sky-500/10 text-sky-400 px-2.5 py-1 rounded-full border border-sky-500/20">
-                <span className="h-2 w-2 rounded-full bg-sky-400 animate-status-pulse"></span>
+              <span className="flex items-center gap-1.5 bg-[#E8EFFC] dark:bg-[#396AFF]/10 text-[#396AFF] font-bold px-3 py-1 rounded-full border border-[#396AFF]/30">
+                <span className="h-2 w-2 rounded-full bg-[#396AFF] animate-status-pulse"></span>
                 Target Connected
               </span>
             )}
@@ -1056,20 +1092,20 @@ export default function App() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
             {/* 1. Source Account Bento Card */}
-            <section className="liquid-glass rounded-3xl p-6 border border-slate-800 space-y-4 spring-transition">
+            <section className={`rounded-3xl p-6 border shadow-[0_4px_25px_rgba(0,0,0,0.03)] space-y-4 spring-transition bankdash-card-hover ${darkMode ? 'bg-[#12151E] border-slate-800' : 'bg-white border-[#E6EFF5]'}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="bg-slate-800 p-2.5 rounded-2xl text-slate-300 border border-slate-700">
+                  <div className={`p-2.5 rounded-2xl ${darkMode ? 'bg-[#1C202D] text-[#4D47C3]' : 'bg-[#E8EFFC] text-[#4D47C3]'}`}>
                     <Database size={20} />
                   </div>
                   <div>
-                    <h2 className="text-base font-bold text-white tracking-tight">Source Account</h2>
-                    <p className="text-[11px] text-slate-400">Akun Asal (Pengambil Data Produk)</p>
+                    <h2 className={`text-base font-bold tracking-tight ${darkMode ? 'text-white' : 'text-[#343C6A]'}`}>Source Account</h2>
+                    <p className={`text-[11px] ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>Akun Asal (Pengambil Data Produk)</p>
                   </div>
                 </div>
                 {sourceToken && (
-                  <span className="flex items-center gap-1.5 bg-emerald-500/15 text-emerald-300 text-xs font-semibold px-3 py-1 rounded-full border border-emerald-500/30">
-                    <span className="h-2 w-2 rounded-full bg-emerald-400 animate-status-pulse"></span>
+                  <span className="flex items-center gap-1.5 bg-[#E7F8F0] dark:bg-[#16DBCC]/10 text-[#16DBCC] text-xs font-bold px-3 py-1 rounded-full border border-[#16DBCC]/30">
+                    <span className="h-2 w-2 rounded-full bg-[#16DBCC] animate-status-pulse"></span>
                     Connected
                   </span>
                 )}
@@ -1077,16 +1113,16 @@ export default function App() {
               
               <form onSubmit={handleLoginSource} className="space-y-3.5">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Source Portal Type</label>
-                  <div className="flex bg-[#0d0e15] p-1 border border-slate-800 rounded-xl gap-1 text-xs">
+                  <label className={`text-[11px] font-bold uppercase tracking-wider ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>Source Portal Type</label>
+                  <div className={`flex p-1 border rounded-xl gap-1 text-xs font-medium ${darkMode ? 'bg-[#090A0F] border-slate-800' : 'bg-[#F4F5F7] border-slate-200'}`}>
                     <button
                       type="button"
                       disabled={sourceToken !== ''}
                       onClick={() => setSourceType('main')}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
                         sourceType === 'main' 
-                          ? 'bg-slate-800 text-white border border-slate-700 shadow-sm' 
-                          : 'text-slate-400 hover:text-white'
+                          ? 'bg-[#4D47C3] text-white shadow-sm' 
+                          : darkMode ? 'text-slate-400 hover:text-white' : 'text-[#718EBF] hover:text-[#343C6A]'
                       }`}
                     >
                       VM Putih
@@ -1095,10 +1131,10 @@ export default function App() {
                       type="button"
                       disabled={sourceToken !== ''}
                       onClick={() => setSourceType('itspc')}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
                         sourceType === 'itspc' 
-                          ? 'bg-slate-800 text-white border border-slate-700 shadow-sm' 
-                          : 'text-slate-400 hover:text-white'
+                          ? 'bg-[#4D47C3] text-white shadow-sm' 
+                          : darkMode ? 'text-slate-400 hover:text-white' : 'text-[#718EBF] hover:text-[#343C6A]'
                       }`}
                     >
                       VM Oren
@@ -1108,10 +1144,10 @@ export default function App() {
                         type="button"
                         disabled={sourceToken !== ''}
                         onClick={() => setSourceType('grabotech')}
-                        className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
                           sourceType === 'grabotech' 
-                            ? 'bg-slate-800 text-white border border-slate-700 shadow-sm' 
-                            : 'text-slate-400 hover:text-white'
+                            ? 'bg-[#4D47C3] text-white shadow-sm' 
+                            : darkMode ? 'text-slate-400 hover:text-white' : 'text-[#718EBF] hover:text-[#343C6A]'
                         }`}
                       >
                         Grabotech
@@ -1121,10 +1157,10 @@ export default function App() {
                       type="button"
                       disabled={sourceToken !== ''}
                       onClick={() => setSourceType('yyvendor')}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
                         sourceType === 'yyvendor' 
-                          ? 'bg-slate-800 text-white border border-slate-700 shadow-sm' 
-                          : 'text-slate-400 hover:text-white'
+                          ? 'bg-[#4D47C3] text-white shadow-sm' 
+                          : darkMode ? 'text-slate-400 hover:text-white' : 'text-[#718EBF] hover:text-[#343C6A]'
                       }`}
                     >
                       Yunyin
@@ -1140,7 +1176,7 @@ export default function App() {
                         value={sourceAccount}
                         onChange={(e) => setSourceAccount(e.target.value)}
                         placeholder="Username Source" 
-                        className="w-full bg-[#0d0e15] border border-slate-800 focus:border-slate-600 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none transition-all font-medium"
+                        className={`w-full border focus:border-[#4D47C3] rounded-xl px-3.5 py-2 text-xs focus:outline-none transition-all font-medium ${darkMode ? 'bg-[#090A0F] border-slate-800 text-white placeholder-slate-500' : 'bg-[#F4F5F7] border-slate-200 text-[#343C6A] placeholder-[#8BA3CB]'}`}
                       />
                     </div>
                     <div>
@@ -1149,7 +1185,7 @@ export default function App() {
                         value={sourcePwd}
                         onChange={(e) => setSourcePwd(e.target.value)}
                         placeholder="Password Source" 
-                        className="w-full bg-[#0d0e15] border border-slate-800 focus:border-slate-600 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none transition-all font-medium"
+                        className={`w-full border focus:border-[#4D47C3] rounded-xl px-3.5 py-2 text-xs focus:outline-none transition-all font-medium ${darkMode ? 'bg-[#090A0F] border-slate-800 text-white placeholder-slate-500' : 'bg-[#F4F5F7] border-slate-200 text-[#343C6A] placeholder-[#8BA3CB]'}`}
                       />
                     </div>
                   </div>
@@ -1162,12 +1198,12 @@ export default function App() {
                       value={sourceVifCode}
                       onChange={(e) => setSourceVifCode(e.target.value)}
                       placeholder="Input CAPTCHA" 
-                      className="flex-1 bg-[#0d0e15] border border-slate-800 focus:border-slate-600 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none"
+                      className={`flex-1 border focus:border-[#4D47C3] rounded-xl px-3.5 py-2 text-xs focus:outline-none ${darkMode ? 'bg-[#090A0F] border-slate-800 text-white placeholder-slate-500' : 'bg-[#F4F5F7] border-slate-200 text-[#343C6A] placeholder-[#8BA3CB]'}`}
                     />
                     {sourceCaptchaUrl ? (
-                      <div className="flex items-center gap-1.5 bg-[#0d0e15] border border-slate-800 rounded-xl p-1 shrink-0">
+                      <div className={`flex items-center gap-1.5 border rounded-xl p-1 shrink-0 ${darkMode ? 'bg-[#090A0F] border-slate-800' : 'bg-[#F4F5F7] border-slate-200'}`}>
                         <img src={sourceCaptchaUrl} alt="CAPTCHA" className="h-[30px] rounded object-contain" />
-                        <button type="button" onClick={loadSourceCaptcha} className="p-1.5 text-slate-400 hover:text-white">
+                        <button type="button" onClick={loadSourceCaptcha} className={`p-1.5 ${darkMode ? 'text-slate-400 hover:text-white' : 'text-[#718EBF] hover:text-[#343C6A]'}`}>
                           <ArrowsClockwise size={14} />
                         </button>
                       </div>
@@ -1176,22 +1212,22 @@ export default function App() {
                 )}
 
                 {sourceLoginError && (
-                  <div className="bg-rose-500/10 text-rose-400 p-2.5 rounded-xl border border-rose-500/20 text-xs flex gap-2 items-center">
+                  <div className="bg-[#FFE8EC] dark:bg-rose-500/10 text-[#FF4B4A] p-2.5 rounded-xl border border-[#FF4B4A]/20 text-xs flex gap-2 items-center font-medium">
                     <Warning size={14} className="shrink-0" />
                     <span>{sourceLoginError}</span>
                   </div>
                 )}
 
                 {sourceUser ? (
-                  <div className="bg-[#0d0e15] rounded-2xl p-3 border border-slate-800 flex items-center justify-between text-xs text-slate-300">
+                  <div className={`rounded-2xl p-3 border flex items-center justify-between text-xs ${darkMode ? 'bg-[#090A0F] border-slate-800 text-slate-200' : 'bg-[#F4F5F7] border-slate-200 text-[#343C6A]'}`}>
                     <div>
-                      <span className="font-semibold text-white block">{sourceUser.contactMan || sourceAccount}</span>
-                      <span className="text-[11px] text-slate-400">{goods.length} produk katalog dimuat</span>
+                      <span className={`font-bold block ${darkMode ? 'text-white' : 'text-[#343C6A]'}`}>{sourceUser.contactMan || sourceAccount}</span>
+                      <span className={`text-[11px] font-medium ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>{goods.length} produk katalog dimuat</span>
                     </div>
                     <button 
                       type="button" 
                       onClick={() => { setSourceToken(''); setSourceUser(null); setGoods([]); }}
-                      className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-[11px] font-semibold rounded-xl transition-all"
+                      className="px-3 py-1.5 bg-[#FFE8EC] dark:bg-rose-500/10 hover:bg-[#FFD4DC] dark:hover:bg-rose-500/20 text-[#FF4B4A] border border-[#FF4B4A]/20 text-[11px] font-bold rounded-xl transition-all"
                     >
                       Disconnect
                     </button>
@@ -1200,7 +1236,7 @@ export default function App() {
                   <button 
                     type="submit" 
                     disabled={isLoggingInSource}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 text-xs font-semibold rounded-xl transition-all disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-[#4D47C3] hover:bg-[#3B35A6] text-white shadow-md shadow-[#4D47C3]/20 text-xs font-bold rounded-xl transition-all disabled:opacity-50"
                   >
                     {isLoggingInSource ? <ArrowsClockwise size={14} className="animate-spin" /> : <Key size={14} />}
                     <span>Login & Muat Katalog Source</span>
@@ -1210,20 +1246,20 @@ export default function App() {
             </section>
 
             {/* 2. Target Account Bento Card */}
-            <section className="liquid-glass rounded-3xl p-6 border border-slate-800 space-y-4 spring-transition">
+            <section className={`rounded-3xl p-6 border shadow-[0_4px_25px_rgba(0,0,0,0.03)] space-y-4 spring-transition bankdash-card-hover ${darkMode ? 'bg-[#12151E] border-slate-800' : 'bg-white border-[#E6EFF5]'}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="bg-slate-800 p-2.5 rounded-2xl text-slate-300 border border-slate-700">
+                  <div className={`p-2.5 rounded-2xl ${darkMode ? 'bg-[#1C202D] text-[#396AFF]' : 'bg-[#E8EFFC] text-[#396AFF]'}`}>
                     <Storefront size={20} />
                   </div>
                   <div>
-                    <h2 className="text-base font-bold text-white tracking-tight">Target Account</h2>
-                    <p className="text-[11px] text-slate-400">Akun Tujuan (Penerima Update Produk)</p>
+                    <h2 className={`text-base font-bold tracking-tight ${darkMode ? 'text-white' : 'text-[#343C6A]'}`}>Target Account</h2>
+                    <p className={`text-[11px] ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>Akun Tujuan (Penerima Update Produk)</p>
                   </div>
                 </div>
                 {targetToken && (
-                  <span className="flex items-center gap-1.5 bg-sky-500/15 text-sky-300 text-xs font-semibold px-3 py-1 rounded-full border border-sky-500/30">
-                    <span className="h-2 w-2 rounded-full bg-sky-400 animate-status-pulse"></span>
+                  <span className="flex items-center gap-1.5 bg-[#E8EFFC] dark:bg-[#396AFF]/10 text-[#396AFF] text-xs font-bold px-3 py-1 rounded-full border border-[#396AFF]/30">
+                    <span className="h-2 w-2 rounded-full bg-[#396AFF] animate-status-pulse"></span>
                     Connected
                   </span>
                 )}
@@ -1231,16 +1267,16 @@ export default function App() {
               
               <form onSubmit={handleLoginTarget} className="space-y-3.5">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Target Portal Type</label>
-                  <div className="flex bg-[#0d0e15] p-1 border border-slate-800 rounded-xl gap-1 text-xs">
+                  <label className={`text-[11px] font-bold uppercase tracking-wider ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>Target Portal Type</label>
+                  <div className={`flex p-1 border rounded-xl gap-1 text-xs font-medium ${darkMode ? 'bg-[#090A0F] border-slate-800' : 'bg-[#F4F5F7] border-slate-200'}`}>
                     <button
                       type="button"
                       disabled={targetToken !== ''}
                       onClick={() => setTargetType('main')}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
                         targetType === 'main' 
-                          ? 'bg-slate-800 text-white border border-slate-700 shadow-sm' 
-                          : 'text-slate-400 hover:text-white'
+                          ? 'bg-[#4D47C3] text-white shadow-sm' 
+                          : darkMode ? 'text-slate-400 hover:text-white' : 'text-[#718EBF] hover:text-[#343C6A]'
                       }`}
                     >
                       VM Putih
@@ -1249,10 +1285,10 @@ export default function App() {
                       type="button"
                       disabled={targetToken !== ''}
                       onClick={() => setTargetType('itspc')}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
                         targetType === 'itspc' 
-                          ? 'bg-slate-800 text-white border border-slate-700 shadow-sm' 
-                          : 'text-slate-400 hover:text-white'
+                          ? 'bg-[#4D47C3] text-white shadow-sm' 
+                          : darkMode ? 'text-slate-400 hover:text-white' : 'text-[#718EBF] hover:text-[#343C6A]'
                       }`}
                     >
                       VM Oren
@@ -1262,10 +1298,10 @@ export default function App() {
                         type="button"
                         disabled={targetToken !== ''}
                         onClick={() => setTargetType('grabotech')}
-                        className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
                           targetType === 'grabotech' 
-                            ? 'bg-slate-800 text-white border border-slate-700 shadow-sm' 
-                            : 'text-slate-400 hover:text-white'
+                            ? 'bg-[#4D47C3] text-white shadow-sm' 
+                            : darkMode ? 'text-slate-400 hover:text-white' : 'text-[#718EBF] hover:text-[#343C6A]'
                         }`}
                       >
                         Grabotech
@@ -1275,10 +1311,10 @@ export default function App() {
                       type="button"
                       disabled={targetToken !== ''}
                       onClick={() => setTargetType('yyvendor')}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
                         targetType === 'yyvendor' 
-                          ? 'bg-slate-800 text-white border border-slate-700 shadow-sm' 
-                          : 'text-slate-400 hover:text-white'
+                          ? 'bg-[#4D47C3] text-white shadow-sm' 
+                          : darkMode ? 'text-slate-400 hover:text-white' : 'text-[#718EBF] hover:text-[#343C6A]'
                       }`}
                     >
                       Yunyin
@@ -1294,7 +1330,7 @@ export default function App() {
                         value={targetAccount}
                         onChange={(e) => setTargetAccount(e.target.value)}
                         placeholder="Username Target" 
-                        className="w-full bg-[#0d0e15] border border-slate-800 focus:border-slate-600 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none transition-all font-medium"
+                        className={`w-full border focus:border-[#4D47C3] rounded-xl px-3.5 py-2 text-xs focus:outline-none transition-all font-medium ${darkMode ? 'bg-[#090A0F] border-slate-800 text-white placeholder-slate-500' : 'bg-[#F4F5F7] border-slate-200 text-[#343C6A] placeholder-[#8BA3CB]'}`}
                       />
                     </div>
                     <div>
@@ -1303,7 +1339,7 @@ export default function App() {
                         value={targetPwd}
                         onChange={(e) => setTargetPwd(e.target.value)}
                         placeholder="Password Target" 
-                        className="w-full bg-[#0d0e15] border border-slate-800 focus:border-slate-600 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none transition-all font-medium"
+                        className={`w-full border focus:border-[#4D47C3] rounded-xl px-3.5 py-2 text-xs focus:outline-none transition-all font-medium ${darkMode ? 'bg-[#090A0F] border-slate-800 text-white placeholder-slate-500' : 'bg-[#F4F5F7] border-slate-200 text-[#343C6A] placeholder-[#8BA3CB]'}`}
                       />
                     </div>
                   </div>
@@ -1316,12 +1352,12 @@ export default function App() {
                       value={targetVifCode}
                       onChange={(e) => setTargetVifCode(e.target.value)}
                       placeholder="Input CAPTCHA" 
-                      className="flex-1 bg-[#0d0e15] border border-slate-800 focus:border-slate-600 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none"
+                      className="flex-1 bg-[#F4F5F7] border border-slate-200 focus:border-[#4D47C3] rounded-xl px-3.5 py-2 text-xs text-[#343C6A] placeholder-[#8BA3CB] focus:outline-none"
                     />
                     {targetCaptchaUrl ? (
-                      <div className="flex items-center gap-1.5 bg-[#0d0e15] border border-slate-800 rounded-xl p-1 shrink-0">
+                      <div className="flex items-center gap-1.5 bg-[#F4F5F7] border border-slate-200 rounded-xl p-1 shrink-0">
                         <img src={targetCaptchaUrl} alt="CAPTCHA" className="h-[30px] rounded object-contain" />
-                        <button type="button" onClick={loadTargetCaptcha} className="p-1.5 text-slate-400 hover:text-white">
+                        <button type="button" onClick={loadTargetCaptcha} className="p-1.5 text-[#718EBF] hover:text-[#343C6A]">
                           <ArrowsClockwise size={14} />
                         </button>
                       </div>
@@ -1330,22 +1366,22 @@ export default function App() {
                 )}
 
                 {targetLoginError && (
-                  <div className="bg-rose-500/10 text-rose-400 p-2.5 rounded-xl border border-rose-500/20 text-xs flex gap-2 items-center">
+                  <div className="bg-[#FFE8EC] text-[#FF4B4A] p-2.5 rounded-xl border border-[#FF4B4A]/20 text-xs flex gap-2 items-center font-medium">
                     <Warning size={14} className="shrink-0" />
                     <span>{targetLoginError}</span>
                   </div>
                 )}
 
                 {targetUser ? (
-                  <div className="bg-[#0d0e15] rounded-2xl p-3 border border-slate-800 flex items-center justify-between text-xs text-slate-300">
+                  <div className="bg-[#F4F5F7] rounded-2xl p-3 border border-slate-200 flex items-center justify-between text-xs text-[#343C6A]">
                     <div>
-                      <span className="font-semibold text-white block">{targetUser.contactMan || targetAccount}</span>
-                      <span className="text-[11px] text-slate-400">{targetGoods.length} produk katalog target</span>
+                      <span className="font-bold text-[#343C6A] block">{targetUser.contactMan || targetAccount}</span>
+                      <span className="text-[11px] text-[#718EBF] font-medium">{targetGoods.length} produk katalog target</span>
                     </div>
                     <button 
                       type="button" 
                       onClick={() => { setTargetToken(''); setTargetUser(null); setTargetGoods([]); }}
-                      className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-[11px] font-semibold rounded-xl transition-all"
+                      className="px-3 py-1.5 bg-[#FFE8EC] hover:bg-[#FFD4DC] text-[#FF4B4A] border border-[#FF4B4A]/20 text-[11px] font-bold rounded-xl transition-all"
                     >
                       Disconnect
                     </button>
@@ -1354,7 +1390,7 @@ export default function App() {
                   <button 
                     type="submit" 
                     disabled={isLoggingInTarget}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 text-xs font-semibold rounded-xl transition-all disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-[#4D47C3] hover:bg-[#3B35A6] text-white shadow-md shadow-[#4D47C3]/20 text-xs font-bold rounded-xl transition-all disabled:opacity-50"
                   >
                     {isLoggingInTarget ? <ArrowsClockwise size={14} className="animate-spin" /> : <Key size={14} />}
                     <span>Login & Muat Katalog Target</span>
@@ -1369,27 +1405,27 @@ export default function App() {
           <div className="space-y-6">
 
             {/* Synchronization Panel */}
-            <section className="liquid-glass rounded-3xl p-6 border border-slate-800 space-y-4">
+            <section className={`rounded-3xl p-6 border shadow-[0_4px_25px_rgba(0,0,0,0.03)] space-y-4 ${darkMode ? 'bg-[#12151E] border-slate-800' : 'bg-white border-[#E6EFF5]'}`}>
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
-                    <ArrowsClockwise className="text-slate-300" size={20} />
+                  <h2 className={`text-base font-bold tracking-tight flex items-center gap-2 ${darkMode ? 'text-white' : 'text-[#343C6A]'}`}>
+                    <ArrowsClockwise className="text-[#4D47C3]" size={20} />
                     <span>Panel Sinkronisasi Produk</span>
                   </h2>
-                  <p className="text-xs text-slate-400 mt-1">Centang produk di katalog bawah untuk disinkronkan ke server akun target</p>
+                  <p className={`text-xs mt-1 ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>Centang produk di katalog bawah untuk disinkronkan ke server akun target</p>
                 </div>
                 
                 <div className="flex flex-wrap items-center gap-4">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-slate-300">Mode Sync:</span>
-                    <div className="flex bg-[#0d0e15] p-1 border border-slate-800 rounded-xl gap-1 text-xs font-medium">
+                    <span className={`text-xs font-bold ${darkMode ? 'text-white' : 'text-[#343C6A]'}`}>Mode Sync:</span>
+                    <div className={`flex p-1 border rounded-xl gap-1 text-xs font-medium ${darkMode ? 'bg-[#090A0F] border-slate-800' : 'bg-[#F4F5F7] border-slate-200'}`}>
                       <button
                         type="button"
                         onClick={() => setSyncMode('both')}
                         className={`px-3 py-1.5 rounded-lg transition-all ${
                           syncMode === 'both'
-                            ? 'bg-slate-800 text-white font-semibold border border-slate-700 shadow-sm'
-                            : 'text-slate-400 hover:text-white'
+                            ? 'bg-[#4D47C3] text-white font-bold shadow-sm'
+                            : darkMode ? 'text-slate-400 hover:text-white' : 'text-[#718EBF] hover:text-[#343C6A]'
                         }`}
                       >
                         Copy & Harga
@@ -1399,8 +1435,8 @@ export default function App() {
                         onClick={() => setSyncMode('copy')}
                         className={`px-3 py-1.5 rounded-lg transition-all ${
                           syncMode === 'copy'
-                            ? 'bg-slate-800 text-white font-semibold border border-slate-700 shadow-sm'
-                            : 'text-slate-400 hover:text-white'
+                            ? 'bg-[#4D47C3] text-white font-bold shadow-sm'
+                            : darkMode ? 'text-slate-400 hover:text-white' : 'text-[#718EBF] hover:text-[#343C6A]'
                         }`}
                       >
                         Copy Saja
@@ -1410,8 +1446,8 @@ export default function App() {
                         onClick={() => setSyncMode('price')}
                         className={`px-3 py-1.5 rounded-lg transition-all ${
                           syncMode === 'price'
-                            ? 'bg-slate-800 text-white font-semibold border border-slate-700 shadow-sm'
-                            : 'text-slate-400 hover:text-white'
+                            ? 'bg-[#4D47C3] text-white font-bold shadow-sm'
+                            : darkMode ? 'text-slate-400 hover:text-white' : 'text-[#718EBF] hover:text-[#343C6A]'
                         }`}
                       >
                         Harga Saja
@@ -1421,8 +1457,8 @@ export default function App() {
                         onClick={() => setSyncMode('image')}
                         className={`px-3 py-1.5 rounded-lg transition-all ${
                           syncMode === 'image'
-                            ? 'bg-slate-800 text-white font-semibold border border-slate-700 shadow-sm'
-                            : 'text-slate-400 hover:text-white'
+                            ? 'bg-[#4D47C3] text-white font-bold shadow-sm'
+                            : darkMode ? 'text-slate-400 hover:text-white' : 'text-[#718EBF] hover:text-[#343C6A]'
                         }`}
                       >
                         Gambar Saja
@@ -1434,7 +1470,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={handleStopSync}
-                      className="px-6 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl flex items-center gap-2 transition-all shadow-md active:scale-[0.98] animate-pulse"
+                      className="px-6 py-2.5 bg-[#FF4B4A] hover:bg-[#D93837] text-white font-bold text-xs rounded-xl flex items-center gap-2 transition-all shadow-md shadow-[#FF4B4A]/20 active:scale-[0.98] animate-pulse"
                     >
                       <Stop size={16} weight="fill" />
                       <span>Stop Paksa Sinkron</span>
@@ -1444,7 +1480,7 @@ export default function App() {
                       type="button"
                       onClick={() => setShowConfirmModal(true)}
                       disabled={selectedIds.size === 0 || !targetToken}
-                      className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 font-semibold text-xs rounded-xl flex items-center gap-2 transition-all shadow-sm active:scale-[0.98]"
+                      className="px-6 py-2.5 bg-[#4D47C3] hover:bg-[#3B35A6] text-white shadow-md shadow-[#4D47C3]/20 disabled:opacity-40 font-bold text-xs rounded-xl flex items-center gap-2 transition-all active:scale-[0.98]"
                     >
                       <Play size={16} weight="fill" />
                       <span>Sinkronkan Produk Terpilih ({selectedIds.size})</span>
@@ -1454,12 +1490,12 @@ export default function App() {
               </div>
 
               {/* Quick Product Limit / Batch Selection Controls */}
-              <div className="pt-4 border-t border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className={`pt-4 border-t flex flex-col md:flex-row md:items-center justify-between gap-3 ${darkMode ? 'border-slate-800' : 'border-slate-100'}`}>
                 <div className="flex items-center gap-2">
-                  <Sliders size={16} className="text-emerald-400 shrink-0" />
-                  <span className="text-xs font-bold text-slate-200">Mau Up Berapa Product:</span>
+                  <Sliders size={16} className="text-[#4D47C3] shrink-0" />
+                  <span className={`text-xs font-bold ${darkMode ? 'text-white' : 'text-[#343C6A]'}`}>Mau Up Berapa Product:</span>
                   {selectedIds.size > 0 && (
-                    <span className="text-[11px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20 font-semibold">
+                    <span className="text-[11px] font-mono text-[#396AFF] bg-[#E8EFFC] dark:bg-[#396AFF]/20 px-2.5 py-0.5 rounded-md border border-[#396AFF]/20 font-bold">
                       Terpilih: {selectedIds.size} / {filteredGoods.length}
                     </span>
                   )}
@@ -1476,10 +1512,10 @@ export default function App() {
                           handleSelectByLimit(num);
                           setCustomLimit('');
                         }}
-                        className={`px-3 py-1.5 rounded-xl font-semibold transition-all active:scale-[0.98] ${
+                        className={`px-3 py-1.5 rounded-xl font-bold transition-all active:scale-[0.98] ${
                           isSelected
-                            ? 'bg-emerald-500 text-[#090a0f] font-bold border border-emerald-400 shadow-md shadow-emerald-500/20'
-                            : 'bg-[#0d0e15] hover:bg-slate-800 text-slate-300 border border-slate-800 hover:border-slate-700'
+                            ? 'bg-[#4D47C3] text-white shadow-md shadow-[#4D47C3]/20 border border-[#4D47C3]'
+                            : darkMode ? 'bg-[#090A0F] hover:bg-slate-800 text-slate-300 border border-slate-800' : 'bg-[#F4F5F7] hover:bg-slate-200 text-[#343C6A] border border-slate-200'
                         }`}
                       >
                         {num === 10 ? '10 doang' : `${num}`}
@@ -1494,20 +1530,20 @@ export default function App() {
                       setActiveLimitPreset('all');
                       setCustomLimit('');
                     }}
-                    className={`px-3 py-1.5 rounded-xl font-semibold transition-all active:scale-[0.98] ${
+                    className={`px-3 py-1.5 rounded-xl font-bold transition-all active:scale-[0.98] ${
                       activeLimitPreset === 'all' || (filteredGoods.length > 0 && selectedIds.size === filteredGoods.length)
-                        ? 'bg-emerald-500 text-[#090a0f] font-bold border border-emerald-400 shadow-md shadow-emerald-500/20'
-                        : 'bg-[#0d0e15] hover:bg-slate-800 text-slate-300 border border-slate-800 hover:border-slate-700'
+                        ? 'bg-[#4D47C3] text-white shadow-md shadow-[#4D47C3]/20 border border-[#4D47C3]'
+                        : darkMode ? 'bg-[#090A0F] hover:bg-slate-800 text-slate-300 border border-slate-800' : 'bg-[#F4F5F7] hover:bg-slate-200 text-[#343C6A] border border-slate-200'
                     }`}
                   >
                     Semua ({filteredGoods.length})
                   </button>
 
                   {/* Custom Input Box */}
-                  <div className={`flex items-center gap-1.5 bg-[#0d0e15] border rounded-xl px-2.5 py-1 transition-all ${
-                    activeLimitPreset === 'custom' ? 'border-emerald-500 ring-1 ring-emerald-500/30' : 'border-slate-800 hover:border-slate-700'
+                  <div className={`flex items-center gap-1.5 border rounded-xl px-2.5 py-1 transition-all ${
+                    activeLimitPreset === 'custom' ? 'border-[#4D47C3] ring-1 ring-[#4D47C3]/30' : darkMode ? 'bg-[#090A0F] border-slate-800' : 'bg-[#F4F5F7] border-slate-200'
                   }`}>
-                    <span className="text-[11px] text-slate-400 font-semibold">Custom:</span>
+                    <span className={`text-[11px] font-semibold ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>Custom:</span>
                     <input
                       type="number"
                       min="1"
@@ -1525,7 +1561,7 @@ export default function App() {
                           setActiveLimitPreset(null);
                         }
                       }}
-                      className="w-16 bg-transparent text-emerald-400 font-bold text-xs focus:outline-none placeholder-slate-600 font-mono"
+                      className="w-16 bg-transparent text-[#4D47C3] font-bold text-xs focus:outline-none placeholder-[#8BA3CB] font-mono"
                     />
                   </div>
 
@@ -1537,7 +1573,7 @@ export default function App() {
                         setActiveLimitPreset(null);
                         setCustomLimit('');
                       }}
-                      className="px-2.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl text-[11px] font-semibold transition-all active:scale-[0.98]"
+                      className="px-2.5 py-1.5 bg-[#FFE8EC] dark:bg-rose-500/10 hover:bg-[#FFD4DC] text-[#FF4B4A] border border-[#FF4B4A]/20 rounded-xl text-[11px] font-bold transition-all active:scale-[0.98]"
                     >
                       Reset
                     </button>
@@ -1547,19 +1583,19 @@ export default function App() {
 
               {/* Sync Progress Indicator */}
               {isSyncing && (
-                <div className="pt-4 border-t border-slate-800 space-y-2">
+                <div className={`pt-4 border-t space-y-2 ${darkMode ? 'border-slate-800' : 'border-slate-100'}`}>
                   <div className="flex justify-between text-xs font-mono">
-                    <span className="text-slate-300 font-semibold flex items-center gap-2">
-                      <ArrowsClockwise size={14} className="animate-spin text-emerald-400" />
+                    <span className={`font-bold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-[#343C6A]'}`}>
+                      <ArrowsClockwise size={14} className="animate-spin text-[#4D47C3]" />
                       Proses: {syncProgress.current} / {syncProgress.total} produk
                     </span>
-                    <span className="text-emerald-400 font-semibold">
+                    <span className="text-[#4D47C3] font-bold">
                       Berhasil: {syncProgress.success} | Skip: {syncProgress.skipped} | Gagal: {syncProgress.error}
                     </span>
                   </div>
-                  <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700">
+                  <div className={`w-full h-2.5 rounded-full overflow-hidden p-0.5 border ${darkMode ? 'bg-[#090A0F] border-slate-800' : 'bg-slate-100 border-slate-200'}`}>
                     <div 
-                      className="h-full bg-emerald-500 rounded-full transition-all duration-300"
+                      className="h-full bg-gradient-to-r from-[#4D47C3] to-[#396AFF] rounded-full transition-all duration-300 shadow-sm"
                       style={{ width: `${(syncProgress.current / syncProgress.total) * 100}%` }}
                     ></div>
                   </div>
@@ -1568,22 +1604,22 @@ export default function App() {
             </section>
 
             {/* Catalog Card */}
-            <section className="liquid-glass rounded-3xl p-6 border border-white/5 space-y-6">
+            <section className={`rounded-3xl p-6 border shadow-[0_4px_25px_rgba(0,0,0,0.03)] space-y-6 ${darkMode ? 'bg-[#12151E] border-slate-800' : 'bg-white border-[#E6EFF5]'}`}>
               
               {/* Catalog Tabs Switcher */}
-              <div className="border-b border-white/5 flex gap-8">
+              <div className={`border-b flex gap-8 ${darkMode ? 'border-slate-800' : 'border-slate-100'}`}>
                 <button
                   type="button"
                   onClick={() => setActiveCatalogTab('source')}
                   className={`pb-4 text-sm font-bold transition-all relative ${
                     activeCatalogTab === 'source'
-                      ? 'text-emerald-400'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? 'text-[#4D47C3]'
+                      : darkMode ? 'text-slate-400 hover:text-white' : 'text-[#718EBF] hover:text-[#343C6A]'
                   }`}
                 >
                   Source Catalog ({goods.length})
                   {activeCatalogTab === 'source' && (
-                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500 rounded-full"></span>
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#4D47C3] rounded-full"></span>
                   )}
                 </button>
 
@@ -1592,14 +1628,14 @@ export default function App() {
                   onClick={() => setActiveCatalogTab('target')}
                   className={`pb-4 text-sm font-bold transition-all relative ${
                     activeCatalogTab === 'target'
-                      ? 'text-emerald-400'
-                      : 'text-slate-400 hover:text-slate-200'
+                      ? 'text-[#4D47C3]'
+                      : darkMode ? 'text-slate-400 hover:text-white' : 'text-[#718EBF] hover:text-[#343C6A]'
                   }`}
                   title={!targetToken ? "Connect target account first to preview catalog" : "Preview target goods"}
                 >
                   Target Catalog ({targetGoods.length})
                   {activeCatalogTab === 'target' && (
-                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500 rounded-full"></span>
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#4D47C3] rounded-full"></span>
                   )}
                 </button>
               </div>
@@ -1607,9 +1643,9 @@ export default function App() {
               {/* Subheader Title & Action Buttons */}
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <h3 className={`text-base font-bold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-[#343C6A]'}`}>
                     <span>{activeCatalogTab === 'source' ? 'Source Goods' : 'Target Goods'}</span>
-                    <span className="bg-white/5 border border-white/10 px-2.5 py-0.5 rounded-full text-xs font-mono text-slate-400">
+                    <span className={`border px-2.5 py-0.5 rounded-full text-xs font-mono font-semibold ${darkMode ? 'bg-[#090A0F] border-slate-800 text-slate-400' : 'bg-[#F4F5F7] border-slate-200 text-[#718EBF]'}`}>
                       {activeCatalogTab === 'source' ? goods.length : targetGoods.length} items
                     </span>
                   </h3>
@@ -1619,7 +1655,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={handleDownloadCSV}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/5 text-slate-300 hover:text-white rounded-xl text-[10px] font-semibold"
+                        className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-xl text-[10px] font-bold transition-all ${darkMode ? 'bg-[#090A0F] hover:bg-slate-800 border-slate-800 text-slate-300' : 'bg-[#F4F5F7] hover:bg-slate-200 border-slate-200 text-[#343C6A]'}`}
                       >
                         <DownloadSimple size={12} />
                         Export CSV
@@ -1628,7 +1664,7 @@ export default function App() {
                         type="button"
                         onClick={handleDownloadImages}
                         disabled={isDownloadingImages || selectedIds.size === 0}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-400 rounded-xl text-[10px] font-semibold disabled:opacity-30"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[#E8EFFC] dark:bg-[#396AFF]/20 hover:bg-[#D4E3FC] border border-[#396AFF]/20 text-[#396AFF] rounded-xl text-[10px] font-bold disabled:opacity-30 transition-all"
                       >
                         {isDownloadingImages ? <ArrowsClockwise size={12} className="animate-spin" /> : <Image size={12} />}
                         Download Images {selectedIds.size > 0 ? `(${selectedIds.size})` : ''}
@@ -1640,85 +1676,85 @@ export default function App() {
                 {((activeCatalogTab === 'source' && goods.length > 0) || (activeCatalogTab === 'target' && targetGoods.length > 0)) && (
                   <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
                     <div className="relative w-full sm:w-56">
-                      <MagnifyingGlass size={14} className="absolute left-3.5 top-3 text-slate-500" />
+                      <MagnifyingGlass size={14} className={`absolute left-3.5 top-3 ${darkMode ? 'text-slate-500' : 'text-[#8BA3CB]'}`} />
                       <input 
                         type="text" 
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="Search by name or code..."
-                        className="w-full bg-[#12141d]/80 border border-white/5 focus:border-white/15 rounded-xl pl-9 pr-3 py-2 text-xs focus:outline-none text-white"
+                        className={`w-full border focus:border-[#4D47C3] rounded-xl pl-9 pr-3 py-2 text-xs focus:outline-none ${darkMode ? 'bg-[#090A0F] border-slate-800 text-white placeholder-slate-500' : 'bg-[#F4F5F7] border-slate-200 text-[#343C6A] placeholder-[#8BA3CB]'}`}
                       />
                     </div>
 
                     <select 
                       value={selectedCategory}
                       onChange={(e) => setSelectedCategory(e.target.value)}
-                      className="w-full sm:w-36 bg-[#12141d]/80 border border-white/5 focus:border-white/15 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none"
+                      className={`w-full sm:w-36 border focus:border-[#4D47C3] rounded-xl px-3 py-2 text-xs font-medium focus:outline-none ${darkMode ? 'bg-[#090A0F] border-slate-800 text-slate-200' : 'bg-[#F4F5F7] border-slate-200 text-[#343C6A]'}`}
                     >
                       {categories.map((cat, idx) => (
-                        <option key={`${cat}_${idx}`} value={cat}>{cat}</option>
+                        <option key={`${cat}_${idx}`} value={cat} className={darkMode ? 'bg-[#12151E]' : ''}>{cat}</option>
                       ))}
                     </select>
                   </div>
                 )}
               </div>
 
-              {/* Goods Table or Empty State (Exact Vercel Screenshot Match!) */}
+              {/* Goods Table or Empty State */}
               {isFetchingGoods || (activeCatalogTab === 'target' && isLoadingTargetGoods) ? (
                 <div className="space-y-3 py-6">
                   {[1, 2, 3, 4].map(i => (
-                    <div key={i} className="flex gap-4 items-center bg-white/2 p-4 rounded-xl border border-white/5 animate-pulse">
-                      <div className="h-4 w-4 bg-white/10 rounded"></div>
-                      <div className="h-10 w-10 bg-white/10 rounded-lg"></div>
+                    <div key={i} className={`flex gap-4 items-center p-4 rounded-xl border animate-pulse ${darkMode ? 'bg-[#090A0F] border-slate-800' : 'bg-[#F4F5F7] border-slate-200'}`}>
+                      <div className="h-4 w-4 bg-slate-400/20 rounded"></div>
+                      <div className="h-10 w-10 bg-slate-400/20 rounded-lg"></div>
                       <div className="flex-1 space-y-2">
-                        <div className="h-4 w-1/3 bg-white/10 rounded"></div>
-                        <div className="h-3 w-1/4 bg-white/10 rounded"></div>
+                        <div className="h-4 w-1/3 bg-slate-400/20 rounded"></div>
+                        <div className="h-3 w-1/4 bg-slate-400/20 rounded"></div>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : activeCatalogTab === 'source' && goodsFetchError ? (
-                <div className="bg-rose-500/10 text-rose-400 p-6 rounded-2xl border border-rose-500/20 text-sm text-center flex flex-col items-center gap-3">
+                <div className="bg-[#FFE8EC] dark:bg-rose-500/10 text-[#FF4B4A] p-6 rounded-2xl border border-[#FF4B4A]/20 text-sm text-center flex flex-col items-center gap-3 font-medium">
                   <Warning size={24} />
                   <p>{goodsFetchError}</p>
                 </div>
               ) : (activeCatalogTab === 'source' && goods.length === 0) ? (
-                <div className="bg-[#12141d]/40 p-16 rounded-3xl border border-white/5 text-center flex flex-col items-center justify-center gap-4 min-h-[300px]">
-                  <div className="bg-slate-800/20 p-4 rounded-full text-slate-600 border border-slate-700/20">
+                <div className={`p-16 rounded-3xl border text-center flex flex-col items-center justify-center gap-4 min-h-[300px] ${darkMode ? 'bg-[#090A0F] border-slate-800' : 'bg-[#F8FAFC] border-slate-200'}`}>
+                  <div className={`p-4 rounded-full ${darkMode ? 'bg-[#1C202D] text-[#4D47C3]' : 'bg-[#E8EFFC] text-[#4D47C3]'}`}>
                     <Database size={36} />
                   </div>
                   <div>
-                    <h4 className="text-base font-bold text-slate-300">No goods loaded</h4>
-                    <p className="text-xs text-slate-500 mt-1.5 max-w-sm mx-auto leading-relaxed">
+                    <h4 className={`text-base font-bold ${darkMode ? 'text-white' : 'text-[#343C6A]'}`}>No goods loaded</h4>
+                    <p className={`text-xs mt-1.5 max-w-sm mx-auto leading-relaxed font-medium ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>
                       Connect your source account credentials on the left panel to load your customs goods catalog.
                     </p>
                   </div>
                 </div>
               ) : (activeCatalogTab === 'target' && targetGoods.length === 0) ? (
-                <div className="bg-[#12141d]/40 p-16 rounded-3xl border border-white/5 text-center flex flex-col items-center justify-center gap-4 min-h-[300px]">
-                  <div className="bg-slate-800/20 p-4 rounded-full text-slate-600 border border-slate-700/20">
+                <div className={`p-16 rounded-3xl border text-center flex flex-col items-center justify-center gap-4 min-h-[300px] ${darkMode ? 'bg-[#090A0F] border-slate-800' : 'bg-[#F8FAFC] border-slate-200'}`}>
+                  <div className={`p-4 rounded-full ${darkMode ? 'bg-[#1C202D] text-[#396AFF]' : 'bg-[#E8EFFC] text-[#396AFF]'}`}>
                     <Storefront size={36} />
                   </div>
                   <div>
-                    <h4 className="text-base font-bold text-slate-300">No Target Products Found</h4>
-                    <p className="text-xs text-slate-500 mt-1.5 max-w-sm mx-auto leading-relaxed">
+                    <h4 className={`text-base font-bold ${darkMode ? 'text-white' : 'text-[#343C6A]'}`}>No Target Products Found</h4>
+                    <p className={`text-xs mt-1.5 max-w-sm mx-auto leading-relaxed font-medium ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>
                       {!targetToken ? 'Connect target account on the left panel to preview its products.' : 'The target account does not have any custom goods yet.'}
                     </p>
                   </div>
                 </div>
               ) : (
-                <div className="border border-white/5 rounded-2xl overflow-hidden bg-white/1">
+                <div className={`border rounded-2xl overflow-hidden shadow-sm ${darkMode ? 'border-slate-800 bg-[#090A0F]' : 'border-[#E6EFF5] bg-white'}`}>
                   <div className="overflow-x-auto max-h-[480px] scrollbar-thin">
                     <table className="w-full text-left border-collapse text-xs">
                       <thead>
-                        <tr className="border-b border-white/5 bg-white/2 text-slate-400 font-semibold">
+                        <tr className={`border-b font-bold uppercase tracking-wider text-[11px] ${darkMode ? 'border-slate-800 bg-[#12151E] text-slate-400' : 'border-[#E6EFF5] bg-[#F9FAFC] text-[#718EBF]'}`}>
                           {activeCatalogTab === 'source' && (
                             <th className="py-3.5 px-4 w-12 text-center">
                               <input 
                                 type="checkbox"
                                 checked={filteredGoods.length > 0 && filteredGoods.every(g => selectedIds.has(g.uuid))}
                                 onChange={handleSelectAll}
-                                className="rounded border-slate-700 text-emerald-500 focus:ring-emerald-500/20 focus:ring-offset-0 bg-transparent h-4 w-4 cursor-pointer"
+                                className="rounded border-slate-300 text-[#4D47C3] focus:ring-[#4D47C3]/20 focus:ring-offset-0 h-4 w-4 cursor-pointer"
                               />
                             </th>
                           )}
@@ -1729,18 +1765,19 @@ export default function App() {
                           {activeCatalogTab === 'source' && <th className="py-3.5 px-4 text-center w-28">Sync status</th>}
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-white/5">
+                      <tbody className={`divide-y ${darkMode ? 'divide-slate-800/60' : 'divide-[#F1F5F9]'}`}>
                         {filteredGoods.map((good) => {
                           const result = syncResults[good.uuid];
+                          const isChecked = selectedIds.has(good.uuid);
                           return (
-                            <tr key={good.uuid} className="hover:bg-white/5 transition-colors">
+                            <tr key={good.uuid} className={`transition-colors ${isChecked ? (darkMode ? 'bg-[#1D1B48]' : 'bg-[#F0F4FF]') : (darkMode ? 'hover:bg-[#161924]' : 'hover:bg-[#F8FAFC]')}`}>
                               {activeCatalogTab === 'source' && (
                                 <td className="py-3 px-4 text-center">
                                   <input 
                                     type="checkbox"
-                                    checked={selectedIds.has(good.uuid)}
+                                    checked={isChecked}
                                     onChange={() => handleSelectOne(good.uuid)}
-                                    className="rounded border-slate-700 text-emerald-500 focus:ring-emerald-500/20 focus:ring-offset-0 bg-transparent h-4 w-4 cursor-pointer"
+                                    className="rounded border-slate-300 text-[#4D47C3] focus:ring-[#4D47C3]/20 focus:ring-offset-0 h-4 w-4 cursor-pointer"
                                   />
                                 </td>
                               )}
@@ -1750,31 +1787,31 @@ export default function App() {
                                     <img 
                                       src={good.goodsUrl} 
                                       alt={good.goodsName} 
-                                      className="h-10 w-10 rounded-xl object-cover bg-white/5 border border-white/10 shrink-0"
+                                      className={`h-10 w-10 rounded-xl object-cover border shrink-0 ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'}`}
                                       onError={(e) => { e.target.style.display = 'none'; }}
                                     />
                                   ) : (
-                                    <div className="h-10 w-10 rounded-xl bg-white/5 border border-white/10 shrink-0 flex items-center justify-center text-slate-500 font-bold text-xs">
+                                    <div className={`h-10 w-10 rounded-xl border shrink-0 flex items-center justify-center font-bold text-xs ${darkMode ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-slate-100 border-slate-200 text-[#718EBF]'}`}>
                                       {good.goodsName?.substring(0, 2)?.toUpperCase()}
                                     </div>
                                   )}
                                   <div className="truncate max-w-[240px]">
-                                    <p className="font-semibold text-slate-200">{good.goodsName}</p>
-                                    <p className="text-[10px] text-slate-500 font-mono">ID: {good.uuid}</p>
+                                    <p className={`font-bold ${darkMode ? 'text-white' : 'text-[#343C6A]'}`}>{good.goodsName}</p>
+                                    <p className={`text-[10px] font-mono ${darkMode ? 'text-slate-500' : 'text-[#718EBF]'}`}>ID: {good.uuid}</p>
                                   </div>
                                 </div>
                               </td>
-                              <td className="py-3 px-4 font-mono text-slate-400">{good.goodsCode || '-'}</td>
+                              <td className={`py-3 px-4 font-mono font-medium ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>{good.goodsCode || '-'}</td>
                               <td className="py-3 px-4">
-                                <span className="bg-white/5 border border-white/5 px-2 py-0.5 rounded text-[10px] text-slate-400 font-medium">
+                                <span className={`border px-2.5 py-1 rounded-lg text-[10px] font-bold ${darkMode ? 'bg-[#12151E] border-slate-800 text-slate-300' : 'bg-[#F4F5F7] border-slate-200 text-[#343C6A]'}`}>
                                   {good.customName || 'General'}
                                 </span>
                               </td>
                               <td className="py-3 px-4 text-right space-y-0.5 font-mono">
-                                <div className="text-emerald-400 font-bold">
+                                <div className="text-[#4D47C3] font-extrabold text-xs">
                                   Rp {(parseFloat(good.goodsPrice) || 0).toLocaleString('id-ID')}
                                 </div>
-                                <div className="text-[10px] text-slate-500">
+                                <div className={`text-[10px] font-medium ${darkMode ? 'text-slate-500' : 'text-[#718EBF]'}`}>
                                   Cost: Rp {(parseFloat(good.costPrice) || 0).toLocaleString('id-ID')}
                                 </div>
                               </td>
@@ -1783,28 +1820,28 @@ export default function App() {
                                   {result ? (
                                     <div className="flex justify-center">
                                       {result.status === 'syncing' && (
-                                        <span className="flex items-center gap-1 text-slate-400 animate-pulse text-[10px]">
-                                          <ArrowsClockwise size={12} className="animate-spin text-slate-500" /> Syncing
+                                        <span className="flex items-center gap-1 text-[#718EBF] animate-pulse text-[10px] font-bold">
+                                          <ArrowsClockwise size={12} className="animate-spin text-[#4D47C3]" /> Syncing
                                         </span>
                                       )}
                                       {result.status === 'success' && (
-                                        <span className="flex items-center gap-1 text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 font-semibold text-[10px]">
+                                        <span className="flex items-center gap-1 text-[#16DBCC] bg-[#E7F8F0] dark:bg-[#16DBCC]/10 px-2.5 py-0.5 rounded-full border border-[#16DBCC]/30 font-bold text-[10px]">
                                           <CheckCircle size={12} /> Synced
                                         </span>
                                       )}
                                       {result.status === 'skipped' && (
-                                        <span className="flex items-center gap-1 text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded-full border border-sky-500/20 font-semibold text-[10px]" title={result.message}>
+                                        <span className="flex items-center gap-1 text-[#396AFF] bg-[#E8EFFC] dark:bg-[#396AFF]/10 px-2.5 py-0.5 rounded-full border border-[#396AFF]/30 font-bold text-[10px]" title={result.message}>
                                           <Info size={12} /> Skipped
                                         </span>
                                       )}
                                       {result.status === 'error' && (
-                                        <span className="flex items-center gap-1 text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20 font-semibold text-[10px]" title={result.message}>
+                                        <span className="flex items-center gap-1 text-[#FF4B4A] bg-[#FFE8EC] dark:bg-[#FF4B4A]/10 px-2.5 py-0.5 rounded-full border border-[#FF4B4A]/30 font-bold text-[10px]" title={result.message}>
                                           <XCircle size={12} /> Failed
                                         </span>
                                       )}
                                     </div>
                                   ) : (
-                                    <span className="text-slate-600 text-[10px]">Pending</span>
+                                    <span className={`text-[10px] font-medium ${darkMode ? 'text-slate-600' : 'text-[#718EBF]'}`}>Pending</span>
                                   )}
                                 </td>
                               )}
@@ -1819,20 +1856,20 @@ export default function App() {
             </section>
 
             {/* Execution Console Logs */}
-            <div className="liquid-glass rounded-3xl p-5 border border-white/5 space-y-3">
-              <div className="flex items-center justify-between text-xs text-slate-400 font-medium">
+            <div className={`rounded-3xl p-5 border shadow-[0_4px_25px_rgba(0,0,0,0.03)] space-y-3 ${darkMode ? 'bg-[#12151E] border-slate-800' : 'bg-white border-[#E6EFF5]'}`}>
+              <div className={`flex items-center justify-between text-xs font-bold ${darkMode ? 'text-white' : 'text-[#343C6A]'}`}>
                 <span>System Execution Logs</span>
                 <button
                   type="button"
                   onClick={() => setSyncLogs([])}
-                  className="hover:text-white underline text-[11px]"
+                  className="text-[#4D47C3] hover:underline text-[11px] font-bold"
                 >
                   Clear Logs
                 </button>
               </div>
-              <div ref={logConsoleRef} className="bg-[#0c0d12] rounded-2xl p-4 h-36 overflow-y-auto font-mono text-[11px] text-slate-400 space-y-1 scrollbar-thin border border-white/5">
+              <div ref={logConsoleRef} className="bg-[#090A0F] dark:bg-[#07080C] rounded-2xl p-4 h-36 overflow-y-auto font-mono text-[11px] text-slate-300 space-y-1 scrollbar-thin border border-slate-800 shadow-inner">
                 {syncLogs.length === 0 ? (
-                  <div className="text-slate-600 italic">No activity logs yet...</div>
+                  <div className="text-slate-500 italic">No activity logs yet...</div>
                 ) : (
                   syncLogs.map((log, index) => (
                     <div key={index} className="leading-relaxed">{log}</div>
@@ -1849,13 +1886,13 @@ export default function App() {
       {activeNavTab === 'excel' && (
         <main className="max-w-7xl w-full mx-auto px-6 md:px-12 mt-8 flex-1 space-y-6">
           
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#12141d]/90 p-6 rounded-3xl border border-white/10 shadow-2xl">
+          <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-3xl border shadow-[0_4px_25px_rgba(0,0,0,0.03)] ${darkMode ? 'bg-[#12151E] border-slate-800' : 'bg-white border-[#E6EFF5]'}`}>
             <div>
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <Coins className="text-emerald-400" size={24} />
+              <h2 className={`text-lg font-bold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-[#343C6A]'}`}>
+                <Coins className="text-[#4D47C3]" size={24} />
                 <span>Halaman Sync & Penyesuaian Harga Excel</span>
               </h2>
-              <p className="text-xs text-slate-400 mt-1">
+              <p className={`text-xs mt-1 font-medium ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>
                 Unggah file Excel (seperti MARGIN VM FINAL JULI 2026), tentukan kolom harga jual & HPP, centang produk, dan update langsung ke katalog Akun Target/Source.
               </p>
             </div>
@@ -1865,7 +1902,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => { setExcelFileName(''); setExcelRows([]); setExcelWorkbook(null); }}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs font-semibold rounded-xl transition-all"
+                  className="flex items-center gap-1.5 px-4 py-2 bg-[#FFE8EC] dark:bg-rose-500/10 hover:bg-[#FFD4DC] text-[#FF4B4A] border border-[#FF4B4A]/20 text-xs font-bold rounded-xl transition-all"
                 >
                   <Trash size={14} />
                   <span>Reset Excel</span>
@@ -1874,7 +1911,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setActiveNavTab('sync')}
-                className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 text-xs font-semibold rounded-xl transition-all"
+                className={`flex items-center gap-2 px-4 py-2 border text-xs font-bold rounded-xl transition-all ${darkMode ? 'bg-[#090A0F] hover:bg-slate-800 text-slate-200 border-slate-800' : 'bg-[#F4F5F7] hover:bg-slate-200 text-[#343C6A] border-slate-200'}`}
               >
                 <span>Lihat Halaman Utama</span>
               </button>
@@ -1883,19 +1920,19 @@ export default function App() {
 
           {/* Account Status / Login Banner on Excel Page */}
           {(!targetToken && !sourceToken) ? (
-            <div className="liquid-glass rounded-3xl p-6 border border-amber-500/30 bg-amber-500/5 space-y-4">
+            <div className={`rounded-3xl p-6 border space-y-4 shadow-sm ${darkMode ? 'bg-amber-500/10 border-amber-500/30' : 'bg-[#FEF6E6] border-[#FFBB38]/30'}`}>
               <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-amber-500/10 text-amber-400 rounded-2xl border border-amber-500/20">
+                <div className="p-2.5 bg-[#FFBB38]/20 text-[#D98200] dark:text-amber-400 rounded-2xl">
                   <Key size={22} />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <h3 className={`text-sm font-bold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-[#343C6A]'}`}>
                     <span>Connect Akun Target / Source Terlebih Dahulu</span>
-                    <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    <span className="text-[10px] uppercase font-extrabold px-2.5 py-0.5 rounded-full bg-[#FFBB38]/20 text-[#D98200] dark:text-amber-300 border border-[#FFBB38]/40">
                       Wajib Login
                     </span>
                   </h3>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <p className={`text-xs mt-0.5 font-medium ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>
                     Login ke akun Target atau Source agar sistem dapat memuat katalog produk dan mencocokkan harga dengan file Excel.
                   </p>
                 </div>
@@ -1906,7 +1943,7 @@ export default function App() {
                   <select 
                     value={targetType} 
                     onChange={(e) => setTargetType(e.target.value)}
-                    className="w-full bg-[#12141d] border border-white/10 rounded-xl px-3 py-2.5 text-white focus:outline-none font-medium"
+                    className={`w-full border rounded-xl px-3 py-2.5 focus:border-[#4D47C3] focus:outline-none font-bold ${darkMode ? 'bg-[#090A0F] border-slate-800 text-white' : 'bg-white border-slate-200 text-[#343C6A]'}`}
                   >
                     <option value="main">VM Putih (SANY POS)</option>
                     <option value="itspc">VM Oren (ITSPC)</option>
@@ -1921,7 +1958,7 @@ export default function App() {
                     value={targetAccount}
                     onChange={(e) => setTargetAccount(e.target.value)}
                     placeholder="Username Target"
-                    className="w-full bg-[#12141d] border border-white/10 rounded-xl px-3.5 py-2.5 text-white placeholder-slate-600 focus:outline-none"
+                    className={`w-full border rounded-xl px-3.5 py-2.5 focus:border-[#4D47C3] focus:outline-none font-medium ${darkMode ? 'bg-[#090A0F] border-slate-800 text-white placeholder-slate-500' : 'bg-white border-slate-200 text-[#343C6A] placeholder-[#8BA3CB]'}`}
                   />
                 </div>
 
@@ -1931,7 +1968,7 @@ export default function App() {
                     value={targetPwd}
                     onChange={(e) => setTargetPwd(e.target.value)}
                     placeholder="Password Target"
-                    className="w-full bg-[#12141d] border border-white/10 rounded-xl px-3.5 py-2.5 text-white placeholder-slate-600 focus:outline-none"
+                    className={`w-full border rounded-xl px-3.5 py-2.5 focus:border-[#4D47C3] focus:outline-none font-medium ${darkMode ? 'bg-[#090A0F] border-slate-800 text-white placeholder-slate-500' : 'bg-white border-slate-200 text-[#343C6A] placeholder-[#8BA3CB]'}`}
                   />
                 </div>
 
@@ -1939,7 +1976,7 @@ export default function App() {
                   <button
                     type="submit"
                     disabled={isLoggingInTarget}
-                    className="w-full bg-sky-500 hover:bg-sky-400 text-[#090a0f] font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50"
+                    className="w-full bg-[#4D47C3] hover:bg-[#3B35A6] text-white font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 shadow-md shadow-[#4D47C3]/20"
                   >
                     {isLoggingInTarget ? <ArrowsClockwise size={14} className="animate-spin" /> : <Key size={14} />}
                     <span>Login & Muat Katalog</span>
@@ -1948,30 +1985,30 @@ export default function App() {
               </form>
             </div>
           ) : (
-            <div className="liquid-glass rounded-3xl p-4 border border-emerald-500/20 bg-emerald-500/5 flex flex-wrap items-center justify-between gap-4 text-xs">
+            <div className={`rounded-3xl p-4 border flex flex-wrap items-center justify-between gap-4 text-xs font-medium ${darkMode ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-[#E7F8F0] border-[#16DBCC]/30'}`}>
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl">
+                <div className="p-2 bg-[#16DBCC]/20 text-[#16DBCC] rounded-xl">
                   <CheckCircle size={18} />
                 </div>
                 <div>
-                  <span className="text-slate-400">Status Akun: </span>
+                  <span className={`font-semibold ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>Status Akun: </span>
                   {targetToken && (
-                    <span className="font-bold text-sky-400 mr-3">Target: {targetUser?.contactMan || targetAccount} ({targetGoods.length} produk)</span>
+                    <span className="font-bold text-[#396AFF] mr-3">Target: {targetUser?.contactMan || targetAccount} ({targetGoods.length} produk)</span>
                   )}
                   {sourceToken && (
-                    <span className="font-bold text-emerald-400">Source: {sourceUser?.contactMan || sourceAccount} ({goods.length} produk)</span>
+                    <span className="font-bold text-[#16DBCC]">Source: {sourceUser?.contactMan || sourceAccount} ({goods.length} produk)</span>
                   )}
                 </div>
               </div>
 
-              <div className="flex items-center bg-[#1a1d29] p-1 rounded-2xl border border-white/10 gap-1 text-xs font-semibold">
+              <div className={`flex items-center p-1 rounded-2xl border gap-1 text-xs font-bold shadow-sm ${darkMode ? 'bg-[#090A0F] border-slate-800' : 'bg-white border-slate-200'}`}>
                 <button
                   type="button"
                   onClick={() => setActiveCatalogTab('target')}
                   className={`px-3 py-1.5 rounded-xl transition-all ${
                     activeCatalogTab === 'target'
-                      ? 'bg-sky-500 text-[#090a0f] font-bold'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-[#4D47C3] text-white shadow-sm'
+                      : darkMode ? 'text-slate-400 hover:text-white' : 'text-[#718EBF] hover:text-[#343C6A]'
                   }`}
                 >
                   Cocokkan ke Katalog Target ({targetGoods.length})
@@ -1981,8 +2018,8 @@ export default function App() {
                   onClick={() => setActiveCatalogTab('source')}
                   className={`px-3 py-1.5 rounded-xl transition-all ${
                     activeCatalogTab === 'source'
-                      ? 'bg-emerald-500 text-[#090a0f] font-bold'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-[#4D47C3] text-white shadow-sm'
+                      : darkMode ? 'text-slate-400 hover:text-white' : 'text-[#718EBF] hover:text-[#343C6A]'
                   }`}
                 >
                   Cocokkan ke Katalog Source ({goods.length})
@@ -1992,80 +2029,80 @@ export default function App() {
           )}
 
           {/* Excel File Upload & Mapping Area */}
-          <section className="liquid-glass rounded-3xl p-6 border border-white/5 space-y-6">
+          <section className={`rounded-3xl p-6 border shadow-[0_4px_25px_rgba(0,0,0,0.03)] space-y-6 ${darkMode ? 'bg-[#12151E] border-slate-800' : 'bg-white border-[#E6EFF5]'}`}>
             {!excelFileName ? (
-              <label className="group relative flex flex-col items-center justify-center p-12 border-2 border-dashed border-white/10 hover:border-emerald-500/50 rounded-3xl bg-[#12141d]/40 hover:bg-[#12141d]/80 cursor-pointer transition-all duration-300">
+              <label className={`group relative flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-3xl cursor-pointer transition-all duration-300 ${darkMode ? 'border-indigo-500/30 hover:border-[#4D47C3] bg-[#090A0F] hover:bg-[#161925]' : 'border-[#4D47C3]/30 hover:border-[#4D47C3] bg-[#F8FAFC] hover:bg-[#F0F4FF]'}`}>
                 <input
                   type="file"
                   accept=".xlsx, .xls, .csv"
                   onChange={handleExcelFileUpload}
                   className="hidden"
                 />
-                <div className="p-4 bg-emerald-500/10 text-emerald-400 rounded-full group-hover:scale-110 group-active:scale-95 transition-transform duration-200 mb-3">
+                <div className={`p-4 rounded-full group-hover:scale-110 group-active:scale-95 transition-transform duration-200 mb-3 shadow-sm ${darkMode ? 'bg-[#1C202D] text-[#4D47C3]' : 'bg-[#E8EFFC] text-[#4D47C3]'}`}>
                   <DownloadSimple size={32} className="rotate-180" />
                 </div>
-                <span className="text-base font-semibold text-slate-200 group-hover:text-emerald-400 transition-colors">
+                <span className={`text-base font-extrabold group-hover:text-[#4D47C3] transition-colors ${darkMode ? 'text-white' : 'text-[#343C6A]'}`}>
                   Upload atau Drop File Excel (.xlsx / .xls / .csv)
                 </span>
-                <span className="text-xs text-slate-500 mt-1">
+                <span className={`text-xs mt-1 font-medium ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>
                   Contoh file: MARGIN VM FINAL JULI 2026 NEW UPDATE.xlsx
                 </span>
               </label>
             ) : (
               <div className="space-y-6">
-                <div className="flex flex-wrap items-center justify-between gap-4 bg-[#12141d]/80 p-4 rounded-2xl border border-white/5 text-xs">
+                <div className={`flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl border text-xs ${darkMode ? 'bg-[#090A0F] border-slate-800' : 'bg-[#F8FAFC] border-slate-200'}`}>
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl">
+                    <div className="p-2 bg-[#E7F8F0] dark:bg-[#16DBCC]/10 text-[#16DBCC] rounded-xl border border-[#16DBCC]/20">
                       <CheckCircle size={18} />
                     </div>
                     <div>
-                      <span className="font-bold text-white text-sm block">{excelFileName}</span>
-                      <span className="text-slate-400 text-xs">{excelRows.length} baris data ditemukan</span>
+                      <span className={`font-extrabold text-sm block ${darkMode ? 'text-white' : 'text-[#343C6A]'}`}>{excelFileName}</span>
+                      <span className={`text-xs font-medium ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>{excelRows.length} baris data ditemukan</span>
                     </div>
                   </div>
 
                   {excelSheets.length > 0 && (
                     <div className="flex items-center gap-2">
-                      <span className="text-slate-400 text-xs font-semibold">Sheet Excel:</span>
+                      <span className={`text-xs font-bold ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>Sheet Excel:</span>
                       <select
                         value={selectedSheet}
                         onChange={(e) => handleSheetChange(e.target.value)}
-                        className="bg-[#1a1d29] border border-emerald-500/40 text-emerald-300 font-bold rounded-xl px-3 py-2 text-xs focus:outline-none"
+                        className={`border font-bold rounded-xl px-3 py-2 text-xs focus:outline-none shadow-sm ${darkMode ? 'bg-[#12151E] border-slate-700 text-indigo-300' : 'bg-white border-[#4D47C3]/30 text-[#4D47C3]'}`}
                       >
                         {excelSheets.map(s => (
-                          <option key={s} value={s}>{s}</option>
+                          <option key={s} value={s} className={darkMode ? 'bg-[#12151E] text-white' : ''}>{s}</option>
                         ))}
                       </select>
                     </div>
                   )}
                 </div>
 
-                {/* Main Automated Summary & Big Action Card (Monochrome) */}
-                <div className="bg-[#12141e] p-6 rounded-3xl border border-white/10 space-y-6 shadow-xl relative overflow-hidden">
+                {/* Main Automated Summary & Big Action Card */}
+                <div className="bg-gradient-to-br from-[#4D47C3] to-[#3B38D8] p-6 rounded-3xl space-y-6 shadow-xl relative overflow-hidden text-white">
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                     
                     {/* Left Column: Automated Analysis Summary */}
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider bg-white/10 text-white px-3 py-1 rounded-full border border-white/20">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider bg-white/20 text-white px-3 py-1 rounded-full border border-white/30 backdrop-blur-sm">
                           Hasil Deteksi Otomatis
                         </span>
                       </div>
-                      <h2 className="text-xl font-bold text-white tracking-tight">
+                      <h2 className="text-xl font-extrabold text-white tracking-tight">
                         {excelMatches.differingCount > 0 ? (
-                          <span className="text-zinc-200">
+                          <span>
                             Ditemukan {excelMatches.differingCount} produk yang perlu di-update harganya
                           </span>
                         ) : (
-                          <span className="text-white">
+                          <span>
                             Semua harga produk ({excelMatches.matchingCount}) sudah sesuai dengan Excel!
                           </span>
                         )}
                       </h2>
-                      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 font-medium">
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-indigo-100 font-medium">
                         <span>Total Cocok: <strong className="text-white font-mono">{excelMatches.matched.length} produk</strong></span>
                         <span>•</span>
-                        <span>Dicocokkan Mirip: <strong className="text-slate-200 font-mono">{excelMatches.similarCount} produk</strong></span>
+                        <span>Dicocokkan Mirip: <strong className="text-white font-mono">{excelMatches.similarCount} produk</strong></span>
                         <span>•</span>
                         <span>Sudah Sesuai: <strong className="text-white font-mono">{excelMatches.matchingCount} produk</strong></span>
                       </div>
@@ -2077,9 +2114,9 @@ export default function App() {
                         type="button"
                         onClick={() => handleApplyExcelPrices(true, true)}
                         disabled={excelCheckedUuids.size === 0 || isSyncing}
-                        className="px-8 py-3.5 bg-white hover:bg-zinc-200 text-zinc-950 disabled:opacity-30 text-xs font-bold rounded-xl shadow-md flex items-center justify-center gap-3 active:scale-[0.98] transition-all"
+                        className="px-8 py-3.5 bg-white hover:bg-slate-100 text-[#343C6A] disabled:opacity-40 text-xs font-extrabold rounded-xl shadow-lg flex items-center justify-center gap-3 active:scale-[0.98] transition-all"
                       >
-                        <Play size={18} weight="fill" />
+                        <Play size={18} weight="fill" className="text-[#4D47C3]" />
                         <span>UPDATE {excelCheckedUuids.size} PRODUK KE SERVER TARGET</span>
                       </button>
                     </div>
@@ -2087,17 +2124,17 @@ export default function App() {
                   </div>
 
                   {/* Simple Update Mode Pills & Advanced Toggle */}
-                  <div className="pt-4 border-t border-slate-800 flex flex-wrap items-center justify-between gap-4">
+                  <div className="pt-4 border-t border-white/20 flex flex-wrap items-center justify-between gap-4">
                     <div className="flex flex-wrap items-center gap-3">
-                      <span className="text-xs font-bold text-slate-300">Pilih Yang Ingin Diupdate:</span>
-                      <div className="flex items-center bg-[#0d0e15] p-1 rounded-xl border border-slate-800 gap-1 text-xs font-medium">
+                      <span className="text-xs font-bold text-indigo-100">Pilih Yang Ingin Diupdate:</span>
+                      <div className="flex items-center bg-white/10 backdrop-blur-md p-1 rounded-xl border border-white/20 gap-1 text-xs font-medium">
                         <button
                           type="button"
                           onClick={() => setExcelUpdateTarget('both')}
                           className={`px-3.5 py-1.5 rounded-lg transition-all ${
                             excelUpdateTarget === 'both'
-                              ? 'bg-white text-zinc-950 font-bold shadow-sm'
-                              : 'text-slate-400 hover:text-white'
+                              ? 'bg-white text-[#343C6A] font-extrabold shadow-sm'
+                              : 'text-indigo-100 hover:text-white'
                           }`}
                         >
                           HPP & Harga Jual
@@ -2107,8 +2144,8 @@ export default function App() {
                           onClick={() => setExcelUpdateTarget('cost_only')}
                           className={`px-3.5 py-1.5 rounded-lg transition-all ${
                             excelUpdateTarget === 'cost_only'
-                              ? 'bg-white text-zinc-950 font-bold shadow-sm'
-                              : 'text-slate-400 hover:text-white'
+                              ? 'bg-white text-[#343C6A] font-extrabold shadow-sm'
+                              : 'text-indigo-100 hover:text-white'
                           }`}
                         >
                           HPP (Modal) Saja
@@ -2118,8 +2155,8 @@ export default function App() {
                           onClick={() => setExcelUpdateTarget('sale_only')}
                           className={`px-3.5 py-1.5 rounded-lg transition-all ${
                             excelUpdateTarget === 'sale_only'
-                              ? 'bg-white text-zinc-950 font-bold shadow-sm'
-                              : 'text-slate-400 hover:text-white'
+                              ? 'bg-white text-[#343C6A] font-extrabold shadow-sm'
+                              : 'text-indigo-100 hover:text-white'
                           }`}
                         >
                           Harga Jual Saja
@@ -2131,7 +2168,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => setShowExcelAdvanced(prev => !prev)}
-                      className="text-xs text-slate-400 hover:text-white flex items-center gap-1.5 font-semibold py-1.5 px-3 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 transition-all"
+                      className="text-xs text-white hover:bg-white/10 flex items-center gap-1.5 font-bold py-1.5 px-3 bg-white/10 rounded-xl border border-white/20 transition-all"
                     >
                       <Sliders size={14} />
                       <span>{showExcelAdvanced ? 'Sembunyikan Pengaturan Kolom' : 'Pengaturan Kolom Excel (Opsional)'}</span>
@@ -2141,84 +2178,84 @@ export default function App() {
 
                   {/* Collapsible Advanced Settings Panel */}
                   {showExcelAdvanced && (
-                    <div className="pt-4 border-t border-white/5 space-y-4">
-                      <div className="text-xs font-semibold text-slate-300 flex items-center justify-between">
+                    <div className="pt-4 border-t border-white/20 space-y-4">
+                      <div className="text-xs font-bold text-white flex items-center justify-between">
                         <span>Pengaturan Pemetaan Kolom Excel & Pencocokan</span>
-                        <span className="text-[10px] text-slate-500">Ubah hanya jika deteksi otomatis keliru</span>
+                        <span className="text-[10px] text-indigo-200 font-normal">Ubah hanya jika deteksi otomatis keliru</span>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 text-xs">
-                        <div className="bg-[#12141d] p-3 rounded-xl border border-white/5 flex flex-col gap-1">
-                          <span className="text-[10px] text-slate-400 font-semibold">1. Kolom Key Excel:</span>
+                        <div className="bg-white/10 p-3 rounded-xl border border-white/20 flex flex-col gap-1">
+                          <span className="text-[10px] text-indigo-100 font-semibold">1. Kolom Key Excel:</span>
                           <select
                             value={excelKeyColumn}
                             onChange={(e) => setExcelKeyColumn(e.target.value)}
-                            className="bg-transparent text-white font-medium focus:outline-none text-xs"
+                            className="bg-transparent text-white font-bold focus:outline-none text-xs"
                           >
                             {excelHeaders.map((h, idx) => (
-                              <option key={`${h}_${idx}`} value={h} className="bg-[#12141d]">{h}</option>
+                              <option key={`${h}_${idx}`} value={h} className="text-[#343C6A]">{h}</option>
                             ))}
                           </select>
                         </div>
 
-                        <div className="bg-[#12141d] p-3 rounded-xl border border-white/5 flex flex-col gap-1">
-                          <span className="text-[10px] text-slate-400 font-semibold">2. Tipe Key Catalog:</span>
+                        <div className="bg-white/10 p-3 rounded-xl border border-white/20 flex flex-col gap-1">
+                          <span className="text-[10px] text-indigo-100 font-semibold">2. Tipe Key Catalog:</span>
                           <select
                             value={excelMatchingField}
                             onChange={(e) => setExcelMatchingField(e.target.value)}
-                            className="bg-transparent text-white font-medium focus:outline-none text-xs"
+                            className="bg-transparent text-white font-bold focus:outline-none text-xs"
                           >
-                            <option value="goodsCode" className="bg-[#12141d]">Barcode / Kode Produk</option>
-                            <option value="goodsName" className="bg-[#12141d]">Nama Produk</option>
+                            <option value="goodsCode" className="text-[#343C6A]">Barcode / Kode Produk</option>
+                            <option value="goodsName" className="text-[#343C6A]">Nama Produk</option>
                           </select>
                         </div>
 
-                        <div className="bg-[#12141d] p-3 rounded-xl border border-emerald-500/20 flex flex-col gap-1">
-                          <span className="text-[10px] text-emerald-400 font-semibold">3. Kolom Harga Jual:</span>
+                        <div className="bg-white/10 p-3 rounded-xl border border-white/20 flex flex-col gap-1">
+                          <span className="text-[10px] text-indigo-100 font-semibold">3. Kolom Harga Jual:</span>
                           <select
                             value={excelPriceColumn}
                             onChange={(e) => setExcelPriceColumn(e.target.value)}
-                            className="bg-transparent text-emerald-300 font-bold focus:outline-none text-xs"
+                            className="bg-transparent text-white font-bold focus:outline-none text-xs"
                           >
-                            <option value="" className="bg-[#12141d]">-- Abaikan --</option>
+                            <option value="" className="text-[#343C6A]">-- Abaikan --</option>
                             {excelHeaders.map((h, idx) => (
-                              <option key={`${h}_${idx}`} value={h} className="bg-[#12141d]">{h}</option>
+                              <option key={`${h}_${idx}`} value={h} className="text-[#343C6A]">{h}</option>
                             ))}
                           </select>
                         </div>
 
-                        <div className="bg-[#12141d] p-3 rounded-xl border border-amber-500/20 flex flex-col gap-1">
-                          <span className="text-[10px] text-amber-400 font-semibold">4. Kolom Modal (HPP):</span>
+                        <div className="bg-white/10 p-3 rounded-xl border border-white/20 flex flex-col gap-1">
+                          <span className="text-[10px] text-indigo-100 font-semibold">4. Kolom Modal (HPP):</span>
                           <select
                             value={excelCostColumn}
                             onChange={(e) => setExcelCostColumn(e.target.value)}
-                            className="bg-transparent text-amber-300 font-bold focus:outline-none text-xs"
+                            className="bg-transparent text-white font-bold focus:outline-none text-xs"
                           >
-                            <option value="" className="bg-[#12141d]">-- Abaikan --</option>
+                            <option value="" className="text-[#343C6A]">-- Abaikan --</option>
                             {excelHeaders.map((h, idx) => (
-                              <option key={`${h}_${idx}`} value={h} className="bg-[#12141d]">{h}</option>
+                              <option key={`${h}_${idx}`} value={h} className="text-[#343C6A]">{h}</option>
                             ))}
                           </select>
                         </div>
 
-                        <div className="bg-[#12141d] p-3 rounded-xl border border-purple-500/20 flex flex-col gap-1">
-                          <span className="text-[10px] text-purple-300 font-semibold">5. Pencocokan Mirip:</span>
+                        <div className="bg-white/10 p-3 rounded-xl border border-white/20 flex flex-col gap-1">
+                          <span className="text-[10px] text-indigo-100 font-semibold">5. Pencocokan Mirip:</span>
                           <div className="flex items-center gap-1">
                             <input
                               type="checkbox"
                               checked={enableFuzzyMatch}
                               onChange={(e) => setEnableFuzzyMatch(e.target.checked)}
-                              className="w-3.5 h-3.5 accent-purple-500 rounded cursor-pointer"
+                              className="w-3.5 h-3.5 rounded cursor-pointer"
                             />
                             <select
                               value={excelFuzzyThreshold}
                               onChange={(e) => setExcelFuzzyThreshold(parseFloat(e.target.value))}
                               disabled={!enableFuzzyMatch}
-                              className="bg-transparent text-purple-200 text-xs font-bold focus:outline-none disabled:opacity-40"
+                              className="bg-transparent text-white text-xs font-bold focus:outline-none disabled:opacity-40"
                             >
-                              <option value={0.5} className="bg-[#12141d]">50% (Fleksibel)</option>
-                              <option value={0.6} className="bg-[#12141d]">60% (Sedang)</option>
-                              <option value={0.7} className="bg-[#12141d]">70% (Ketat)</option>
-                              <option value={0.8} className="bg-[#12141d]">80% (Sangat Ketat)</option>
+                              <option value={0.5} className="text-[#343C6A]">50% (Fleksibel)</option>
+                              <option value={0.6} className="text-[#343C6A]">60% (Sedang)</option>
+                              <option value={0.7} className="text-[#343C6A]">70% (Ketat)</option>
+                              <option value={0.8} className="text-[#343C6A]">80% (Sangat Ketat)</option>
                             </select>
                           </div>
                         </div>
@@ -2229,31 +2266,31 @@ export default function App() {
 
                 {/* Live Progress Bar Indicator with Detailed Counts */}
                 {(isSyncing || syncProgress.total > 0) && (
-                  <div className="bg-[#12141d]/90 p-5 rounded-2xl border border-emerald-500/30 space-y-3 shadow-xl">
+                  <div className={`p-5 rounded-2xl border space-y-3 shadow-md ${darkMode ? 'bg-[#090A0F] border-slate-800' : 'bg-white border-[#E6EFF5]'}`}>
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs font-mono">
-                      <span className="text-slate-200 font-bold flex items-center gap-2">
+                      <span className={`font-bold flex items-center gap-2 ${darkMode ? 'text-white' : 'text-[#343C6A]'}`}>
                         {isSyncing ? (
-                          <ArrowsClockwise size={16} className="animate-spin text-emerald-400" />
+                          <ArrowsClockwise size={16} className="animate-spin text-[#4D47C3]" />
                         ) : (
-                          <CheckCircle size={16} className="text-emerald-400" />
+                          <CheckCircle size={16} className="text-[#16DBCC]" />
                         )}
                         Status Update Server: {syncProgress.current} / {syncProgress.total} produk
                       </span>
                       <div className="flex items-center gap-3 font-bold text-xs">
-                        <span className="text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 flex items-center gap-1">
+                        <span className="text-[#16DBCC] bg-[#E7F8F0] dark:bg-[#16DBCC]/10 px-2.5 py-1 rounded-lg border border-[#16DBCC]/30 flex items-center gap-1">
                           <CheckCircle size={14} /> Berhasil: {syncProgress.success}
                         </span>
-                        <span className="text-sky-400 bg-sky-500/10 px-2.5 py-1 rounded-lg border border-sky-500/20 flex items-center gap-1">
+                        <span className="text-[#396AFF] bg-[#E8EFFC] dark:bg-[#396AFF]/10 px-2.5 py-1 rounded-lg border border-[#396AFF]/30 flex items-center gap-1">
                           <Info size={14} /> Skip: {syncProgress.skipped}
                         </span>
-                        <span className="text-rose-400 bg-rose-500/10 px-2.5 py-1 rounded-lg border border-rose-500/20 flex items-center gap-1">
+                        <span className="text-[#FF4B4A] bg-[#FFE8EC] dark:bg-[#FF4B4A]/10 px-2.5 py-1 rounded-lg border border-[#FF4B4A]/30 flex items-center gap-1">
                           <XCircle size={14} /> Gagal: {syncProgress.error}
                         </span>
                         {isSyncing && (
                           <button
                             type="button"
                             onClick={handleStopSync}
-                            className="ml-2 px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-sm active:scale-95 animate-pulse"
+                            className="ml-2 px-3 py-1 bg-[#FF4B4A] hover:bg-[#D93837] text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-sm active:scale-95 animate-pulse"
                           >
                             <Stop size={14} weight="fill" />
                             <span>Stop Paksa</span>
@@ -2261,9 +2298,9 @@ export default function App() {
                         )}
                       </div>
                     </div>
-                    <div className="w-full h-3 bg-white/5 rounded-full overflow-hidden p-0.5 border border-white/10">
+                    <div className={`w-full h-3 rounded-full overflow-hidden p-0.5 border ${darkMode ? 'bg-[#12151E] border-slate-800' : 'bg-slate-100 border-slate-200'}`}>
                       <div 
-                        className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-300 shadow-lg shadow-emerald-500/50"
+                        className="h-full bg-gradient-to-r from-[#4D47C3] to-[#396AFF] rounded-full transition-all duration-300 shadow-sm"
                         style={{ width: `${syncProgress.total > 0 ? (syncProgress.current / syncProgress.total) * 100 : 0}%` }}
                       ></div>
                     </div>
@@ -2273,16 +2310,16 @@ export default function App() {
                 {/* Filter & Selection Control Bar */}
                 {excelMatches.matched.length > 0 && (
                   <div className="space-y-3">
-                    <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-[#12141d]/80 p-3 rounded-2xl border border-white/5 text-xs">
+                    <div className={`flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 p-3 rounded-2xl border text-xs shadow-sm ${darkMode ? 'bg-[#090A0F] border-slate-800' : 'bg-white border-[#E6EFF5]'}`}>
                       {/* Filter Status Tabs */}
-                      <div className="flex flex-wrap items-center bg-[#1a1d29] p-1 rounded-xl border border-white/10 gap-1 font-semibold">
+                      <div className={`flex flex-wrap items-center p-1 rounded-xl border gap-1 font-bold ${darkMode ? 'bg-[#12151E] border-slate-800' : 'bg-[#F4F5F7] border-slate-200'}`}>
                         <button
                           type="button"
                           onClick={() => setExcelFilterStatus('ALL')}
                           className={`px-3 py-1.5 rounded-lg transition-all ${
                             excelFilterStatus === 'ALL'
-                              ? 'bg-white/10 text-white font-bold'
-                              : 'text-slate-400 hover:text-white'
+                              ? 'bg-[#4D47C3] text-white'
+                              : darkMode ? 'text-slate-400 hover:text-white' : 'text-[#718EBF] hover:text-[#343C6A]'
                           }`}
                         >
                           Semua ({excelMatches.matched.length})
@@ -2292,12 +2329,12 @@ export default function App() {
                           onClick={() => setExcelFilterStatus('NEED_UPDATE')}
                           className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
                             excelFilterStatus === 'NEED_UPDATE'
-                              ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30'
-                              : 'text-slate-400 hover:text-amber-300'
+                              ? 'bg-[#FEF6E6] dark:bg-amber-500/20 text-[#D98200] dark:text-amber-300 border border-[#FFBB38]/40'
+                              : darkMode ? 'text-slate-400 hover:text-amber-300' : 'text-[#718EBF] hover:text-[#D98200]'
                           }`}
                         >
                           <span>Belum Sesuai</span>
-                          <span className="bg-amber-500/30 text-amber-200 px-1.5 py-0.5 rounded-full text-[10px] font-mono">
+                          <span className="bg-[#FFBB38]/30 text-[#D98200] dark:text-amber-300 px-1.5 py-0.5 rounded-full text-[10px] font-mono">
                             {excelMatches.differingCount}
                           </span>
                         </button>
@@ -2306,12 +2343,12 @@ export default function App() {
                           onClick={() => setExcelFilterStatus('ALREADY_MATCHED')}
                           className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
                             excelFilterStatus === 'ALREADY_MATCHED'
-                              ? 'bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30'
-                              : 'text-slate-400 hover:text-emerald-300'
+                              ? 'bg-[#E7F8F0] dark:bg-emerald-500/20 text-[#16DBCC] border border-[#16DBCC]/40'
+                              : darkMode ? 'text-slate-400 hover:text-[#16DBCC]' : 'text-[#718EBF] hover:text-[#16DBCC]'
                           }`}
                         >
                           <span>Sudah Sesuai</span>
-                          <span className="bg-emerald-500/30 text-emerald-200 px-1.5 py-0.5 rounded-full text-[10px] font-mono">
+                          <span className="bg-[#16DBCC]/30 text-[#16DBCC] px-1.5 py-0.5 rounded-full text-[10px] font-mono">
                             {excelMatches.matchingCount}
                           </span>
                         </button>
@@ -2320,80 +2357,37 @@ export default function App() {
                           onClick={() => setExcelFilterStatus('SIMILAR')}
                           className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
                             excelFilterStatus === 'SIMILAR'
-                              ? 'bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30'
-                              : 'text-slate-400 hover:text-purple-300'
+                              ? 'bg-[#E8EFFC] dark:bg-[#396AFF]/20 text-[#396AFF] border border-[#396AFF]/40'
+                              : darkMode ? 'text-slate-400 hover:text-[#396AFF]' : 'text-[#718EBF] hover:text-[#396AFF]'
                           }`}
                         >
                           <span>Mirip (Fuzzy)</span>
-                          <span className="bg-purple-500/30 text-purple-200 px-1.5 py-0.5 rounded-full text-[10px] font-mono">
+                          <span className="bg-[#396AFF]/30 text-[#396AFF] px-1.5 py-0.5 rounded-full text-[10px] font-mono">
                             {excelMatches.similarCount}
                           </span>
                         </button>
-
-                        {/* Server Status Filters */}
-                        {syncProgress.total > 0 && (
-                          <>
-                            <div className="w-[1px] h-4 bg-white/10 mx-1"></div>
-                            <button
-                              type="button"
-                              onClick={() => setExcelFilterStatus('SYNC_SUCCESS')}
-                              className={`px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1 ${
-                                excelFilterStatus === 'SYNC_SUCCESS'
-                                  ? 'bg-emerald-500/30 text-emerald-300 font-bold border border-emerald-500/40'
-                                  : 'text-slate-400 hover:text-emerald-300'
-                              }`}
-                            >
-                              <CheckCircle size={12} />
-                              <span>Berhasil ({syncProgress.success})</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setExcelFilterStatus('SYNC_SKIPPED')}
-                              className={`px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1 ${
-                                excelFilterStatus === 'SYNC_SKIPPED'
-                                  ? 'bg-sky-500/30 text-sky-300 font-bold border border-sky-500/40'
-                                  : 'text-slate-400 hover:text-sky-300'
-                              }`}
-                            >
-                              <Info size={12} />
-                              <span>Skip ({syncProgress.skipped})</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setExcelFilterStatus('SYNC_ERROR')}
-                              className={`px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1 ${
-                                excelFilterStatus === 'SYNC_ERROR'
-                                  ? 'bg-rose-500/30 text-rose-300 font-bold border border-rose-500/40'
-                                  : 'text-slate-400 hover:text-rose-300'
-                              }`}
-                            >
-                              <XCircle size={12} />
-                              <span>Gagal ({syncProgress.error})</span>
-                            </button>
-                          </>
-                        )}
                       </div>
 
                       {/* Quick Selection Buttons */}
-                      <div className="flex flex-wrap items-center gap-1.5 font-semibold text-[11px]">
+                      <div className="flex flex-wrap items-center gap-1.5 font-bold text-[11px]">
                         <button
                           type="button"
                           onClick={checkOnlyDifferingExcel}
-                          className="px-3 py-1.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 rounded-xl transition-all"
+                          className="px-3 py-1.5 bg-[#FEF6E6] dark:bg-amber-500/10 hover:bg-[#FDF0D5] text-[#D98200] dark:text-amber-300 border border-[#FFBB38]/30 rounded-xl transition-all"
                         >
                           Centang Belum Sesuai ({excelMatches.differingCount})
                         </button>
                         <button
                           type="button"
                           onClick={checkAllMatchedExcel}
-                          className="px-3 py-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 rounded-xl transition-all"
+                          className="px-3 py-1.5 bg-[#E7F8F0] dark:bg-emerald-500/10 hover:bg-[#D3F5E7] text-[#16DBCC] border border-[#16DBCC]/30 rounded-xl transition-all"
                         >
                           Centang Semua
                         </button>
                         <button
                           type="button"
                           onClick={uncheckAllExcel}
-                          className="px-2.5 py-1.5 bg-white/5 hover:bg-white/10 text-slate-400 border border-white/10 rounded-xl transition-all"
+                          className={`px-2.5 py-1.5 border rounded-xl transition-all ${darkMode ? 'bg-[#12151E] hover:bg-slate-800 text-slate-300 border-slate-800' : 'bg-[#F4F5F7] hover:bg-slate-200 text-[#718EBF] border-slate-200'}`}
                         >
                           Kosongkan
                         </button>
@@ -2401,9 +2395,9 @@ export default function App() {
                     </div>
 
                     {/* Excel Preview Table */}
-                    <div className="max-h-[500px] overflow-y-auto rounded-2xl border border-white/10 bg-[#12141d]/90 scrollbar-thin">
+                    <div className={`max-h-[500px] overflow-y-auto rounded-2xl border scrollbar-thin shadow-sm ${darkMode ? 'border-slate-800 bg-[#090A0F]' : 'border-[#E6EFF5] bg-white'}`}>
                       <table className="w-full text-left text-xs border-collapse font-mono">
-                        <thead className="sticky top-0 bg-[#1a1d29] text-slate-400 uppercase text-[10px] font-bold border-b border-white/10">
+                        <thead className={`sticky top-0 uppercase text-[10px] font-bold border-b ${darkMode ? 'bg-[#12151E] text-slate-400 border-slate-800' : 'bg-[#F9FAFC] text-[#718EBF] border-[#E6EFF5]'}`}>
                           <tr>
                             <th className="p-3 text-center w-10">
                               <input
@@ -2444,7 +2438,7 @@ export default function App() {
                                   });
                                   toggleExcelCheckAllFiltered(filtered);
                                 }}
-                                className="w-4 h-4 rounded accent-emerald-500 cursor-pointer"
+                                className="w-4 h-4 rounded text-[#4D47C3] focus:ring-[#4D47C3]/20 cursor-pointer"
                               />
                             </th>
                             <th className="p-3">#</th>
@@ -2453,11 +2447,11 @@ export default function App() {
                             <th className="p-3 text-center font-sans">Pencocokan</th>
                             <th className="p-3 text-center font-sans">Status Kesesuaian</th>
                             <th className="p-3 text-center font-sans">Status Update Server</th>
-                            {excelPriceColumn && <th className="p-3 text-right text-emerald-400">Harga Jual ({excelPriceColumn})</th>}
-                            {excelCostColumn && <th className="p-3 text-right text-amber-400">Modal / HPP ({excelCostColumn})</th>}
+                            {excelPriceColumn && <th className="p-3 text-right text-[#4D47C3]">Harga Jual ({excelPriceColumn})</th>}
+                            {excelCostColumn && <th className="p-3 text-right text-[#D98200] dark:text-amber-400">Modal / HPP ({excelCostColumn})</th>}
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-white/5">
+                        <tbody className={`divide-y ${darkMode ? 'divide-slate-800/60' : 'divide-[#F1F5F9]'}`}>
                           {excelMatches.matched
                             .filter(m => {
                               if (excelFilterStatus === 'NEED_UPDATE') return !m.isMatching;
@@ -2471,70 +2465,70 @@ export default function App() {
                             .map((m, idx) => {
                             const sRes = syncResults[m.catalogItem.uuid];
                             return (
-                            <tr key={idx} className="hover:bg-white/5">
+                            <tr key={idx} className={`transition-colors ${darkMode ? 'hover:bg-[#161924]' : 'hover:bg-[#F8FAFC]'}`}>
                               <td className="p-3 text-center">
                                 <input
                                   type="checkbox"
                                   checked={excelCheckedUuids.has(m.catalogItem.uuid)}
                                   onChange={() => toggleExcelCheckItem(m.catalogItem.uuid)}
-                                  className="w-4 h-4 rounded accent-emerald-500 cursor-pointer"
+                                  className="w-4 h-4 rounded text-[#4D47C3] focus:ring-[#4D47C3]/20 cursor-pointer"
                                 />
                               </td>
-                              <td className="p-3 text-slate-500">{m.rowNum}</td>
-                              <td className="p-3 font-sans text-slate-200 font-medium">{m.catalogItem.goodsName}</td>
-                              <td className="p-3 text-slate-400">{m.excelKey}</td>
+                              <td className={`p-3 ${darkMode ? 'text-slate-500' : 'text-[#718EBF]'}`}>{m.rowNum}</td>
+                              <td className={`p-3 font-sans font-bold ${darkMode ? 'text-white' : 'text-[#343C6A]'}`}>{m.catalogItem.goodsName}</td>
+                              <td className={`p-3 ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>{m.excelKey}</td>
                               <td className="p-3 text-center font-sans">
                                 {m.matchType === 'exact' ? (
-                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#E7F8F0] dark:bg-[#16DBCC]/10 text-[#16DBCC] border border-[#16DBCC]/30">
                                     Persis (100%)
                                   </span>
                                 ) : (
-                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#E8EFFC] dark:bg-[#396AFF]/10 text-[#396AFF] border border-[#396AFF]/30">
                                     Mirip ({Math.round(m.similarityScore * 100)}%)
                                   </span>
                                 )}
                               </td>
                               <td className="p-3 text-center font-sans">
                                 {m.isMatching ? (
-                                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">Sudah Sesuai</span>
+                                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#E7F8F0] dark:bg-[#16DBCC]/10 text-[#16DBCC] border border-[#16DBCC]/30">Sudah Sesuai</span>
                                 ) : (
-                                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">Belum Sesuai</span>
+                                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#FEF6E6] dark:bg-amber-500/10 text-[#D98200] dark:text-amber-300 border border-[#FFBB38]/40">Belum Sesuai</span>
                                 )}
                               </td>
                               <td className="p-3 text-center font-sans">
                                 {sRes ? (
                                   sRes.status === 'success' ? (
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#E7F8F0] dark:bg-[#16DBCC]/10 text-[#16DBCC] border border-[#16DBCC]/30">
                                       <CheckCircle size={12} />
                                       Berhasil
                                     </span>
                                   ) : sRes.status === 'skipped' ? (
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40" title={sRes.message}>
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#E8EFFC] dark:bg-[#396AFF]/10 text-[#396AFF] border border-[#396AFF]/30" title={sRes.message}>
                                       <Info size={12} />
                                       Skip
                                     </span>
                                   ) : (
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40" title={sRes.message}>
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#FFE8EC] dark:bg-rose-500/10 text-[#FF4B4A] border border-[#FF4B4A]/30" title={sRes.message}>
                                       <XCircle size={12} />
                                       Gagal
                                     </span>
                                   )
                                 ) : (
-                                  <span className="text-[10px] text-slate-500 font-mono">Belum Sync</span>
+                                  <span className={`text-[10px] font-mono ${darkMode ? 'text-slate-600' : 'text-[#718EBF]'}`}>Belum Sync</span>
                                 )}
                               </td>
                               {excelPriceColumn && (
                                 <td className="p-3 text-right">
-                                  <span className="text-slate-500 line-through text-[11px] mr-2">Rp {m.currentSalePrice.toLocaleString('id-ID')}</span>
-                                  <span className={`font-bold ${m.hasSaleChange ? 'text-emerald-400' : 'text-slate-400'}`}>
+                                  <span className={`line-through text-[11px] mr-2 ${darkMode ? 'text-slate-500' : 'text-[#8BA3CB]'}`}>Rp {m.currentSalePrice.toLocaleString('id-ID')}</span>
+                                  <span className={`font-extrabold ${m.hasSaleChange ? 'text-[#4D47C3]' : darkMode ? 'text-slate-200' : 'text-[#343C6A]'}`}>
                                     Rp {m.newSalePrice.toLocaleString('id-ID')}
                                   </span>
                                 </td>
                               )}
                               {excelCostColumn && (
                                 <td className="p-3 text-right">
-                                  <span className="text-slate-500 line-through text-[11px] mr-2">Rp {m.currentCostPrice.toLocaleString('id-ID')}</span>
-                                  <span className={`font-bold ${m.hasCostChange ? 'text-amber-400' : 'text-slate-400'}`}>
+                                  <span className={`line-through text-[11px] mr-2 ${darkMode ? 'text-slate-500' : 'text-[#8BA3CB]'}`}>Rp {m.currentCostPrice.toLocaleString('id-ID')}</span>
+                                  <span className={`font-extrabold ${m.hasCostChange ? 'text-[#D98200] dark:text-amber-400' : darkMode ? 'text-slate-200' : 'text-[#343C6A]'}`}>
                                     Rp {m.newCostPrice.toLocaleString('id-ID')}
                                   </span>
                                 </td>
@@ -2548,11 +2542,11 @@ export default function App() {
 
                     {/* Collapsible Log Console Box on Excel Page */}
                     <div className="pt-2">
-                      <div className="flex items-center justify-between text-xs text-slate-400 font-medium py-2 px-1">
+                      <div className={`flex items-center justify-between text-xs font-bold py-2 px-1 ${darkMode ? 'text-white' : 'text-[#343C6A]'}`}>
                         <button
                           type="button"
                           onClick={() => setShowExcelLogs(prev => !prev)}
-                          className="flex items-center gap-1.5 hover:text-white font-semibold transition-colors"
+                          className="flex items-center gap-1.5 hover:text-[#4D47C3] font-bold transition-colors"
                         >
                           <Sliders size={14} />
                           <span>{showExcelLogs ? 'Sembunyikan Log Eksekusi' : 'Tampilkan Log Eksekusi Server'}</span>
@@ -2563,7 +2557,7 @@ export default function App() {
                           <button
                             type="button"
                             onClick={() => setSyncLogs([])}
-                            className="hover:text-white underline text-[11px]"
+                            className="text-[#4D47C3] hover:underline text-[11px]"
                           >
                             Bersihkan Log
                           </button>
@@ -2571,9 +2565,9 @@ export default function App() {
                       </div>
 
                       {showExcelLogs && (
-                        <div className="bg-[#0c0d12] rounded-2xl p-4 h-36 overflow-y-auto font-mono text-[11px] text-slate-400 space-y-1 scrollbar-thin border border-white/5 mt-2 animate-fadeIn">
+                        <div className="bg-[#090A0F] dark:bg-[#07080C] rounded-2xl p-4 h-36 overflow-y-auto font-mono text-[11px] text-slate-300 space-y-1 scrollbar-thin border border-slate-800 mt-2 animate-fadeIn shadow-inner">
                           {syncLogs.length === 0 ? (
-                            <div className="text-slate-600 italic">Belum ada aktivitas eksekusi...</div>
+                            <div className="text-slate-500 italic">Belum ada aktivitas eksekusi...</div>
                           ) : (
                             syncLogs.map((log, index) => (
                               <div key={index} className="leading-relaxed">{log}</div>
@@ -2582,6 +2576,7 @@ export default function App() {
                         </div>
                       )}
                     </div>
+
                   </div>
                 )}
               </div>
@@ -2592,37 +2587,37 @@ export default function App() {
 
       {/* Confirmation Modal */}
       {showConfirmModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-[#0b0c11] border border-white/10 rounded-[2.5rem] w-full max-w-md overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
-            <div className="p-6 border-b border-white/5 flex items-center gap-3">
-              <div className="bg-amber-500/10 p-2 rounded-xl text-amber-400">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
+          <div className={`border rounded-[2.5rem] w-full max-w-md overflow-hidden shadow-[0_25px_60px_rgba(0,0,0,0.3)] animate-fadeIn ${darkMode ? 'bg-[#12151E] border-slate-800' : 'bg-white border-slate-200'}`}>
+            <div className={`p-6 border-b flex items-center gap-3 ${darkMode ? 'border-slate-800' : 'border-slate-100'}`}>
+              <div className="bg-[#FEF6E6] dark:bg-amber-500/10 p-2.5 rounded-2xl text-[#D98200] dark:text-amber-400">
                 <Warning size={22} />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white">Konfirmasi Sinkronisasi</h3>
-                <p className="text-xs text-slate-400">Harap periksa kembali sebelum melanjutkan</p>
+                <h3 className={`text-base font-bold ${darkMode ? 'text-white' : 'text-[#343C6A]'}`}>Konfirmasi Sinkronisasi</h3>
+                <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>Harap periksa kembali sebelum melanjutkan</p>
               </div>
             </div>
 
             <div className="p-6 space-y-4">
-              <div className="bg-white/2 rounded-2xl p-4 border border-white/5 space-y-3 text-sm">
+              <div className={`rounded-2xl p-4 border space-y-3 text-sm ${darkMode ? 'bg-[#090A0F] border-slate-800' : 'bg-[#F8FAFC] border-slate-200'}`}>
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-400 text-xs">Total Produk Terpilih:</span>
-                  <span className="font-bold text-white bg-white/5 px-2.5 py-1 rounded-lg border border-white/5 font-mono text-xs">
+                  <span className={`text-xs font-semibold ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>Total Produk Terpilih:</span>
+                  <span className={`font-bold px-2.5 py-1 rounded-lg border font-mono text-xs ${darkMode ? 'bg-[#12151E] border-slate-800 text-white' : 'bg-white border-slate-200 text-[#343C6A]'}`}>
                     {selectedIds.size} Item
                   </span>
                 </div>
                 
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-400 text-xs">Target Portal:</span>
-                  <span className="font-bold text-sky-400 text-xs bg-sky-500/10 px-2.5 py-1 rounded-lg border border-sky-500/20">
+                  <span className={`text-xs font-semibold ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>Target Portal:</span>
+                  <span className="font-bold text-[#396AFF] text-xs bg-[#E8EFFC] dark:bg-[#396AFF]/20 px-2.5 py-1 rounded-lg border border-[#396AFF]/20">
                     {targetType === 'grabotech' ? 'Grabotech' : targetType === 'itspc' ? 'VM Oren' : targetType === 'yyvendor' ? 'Yunyin' : 'VM Putih'}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-400 text-xs">Mode Sinkronisasi:</span>
-                  <span className="font-bold text-emerald-400 text-xs">
+                  <span className={`text-xs font-semibold ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>Mode Sinkronisasi:</span>
+                  <span className="font-bold text-[#4D47C3] text-xs bg-indigo-50 dark:bg-indigo-500/20 px-2.5 py-1 rounded-lg border border-indigo-100 dark:border-indigo-500/30">
                     {syncMode === 'both' && 'Copy & Price'}
                     {syncMode === 'copy' && 'Copy Only'}
                     {syncMode === 'price' && 'Price Only'}
@@ -2635,14 +2630,14 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setShowConfirmModal(false)}
-                  className="px-4 py-2.5 bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold rounded-xl transition-all"
+                  className={`px-4 py-2.5 border text-xs font-bold rounded-xl transition-all ${darkMode ? 'bg-[#090A0F] hover:bg-slate-800 text-slate-300 border-slate-800' : 'bg-[#F4F5F7] hover:bg-slate-200 text-[#718EBF] border-slate-200'}`}
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={handleSyncGoods}
-                  className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-[#090a0f] text-xs font-bold rounded-xl transition-all flex items-center gap-2"
+                  className="px-5 py-2.5 bg-[#4D47C3] hover:bg-[#3B35A6] text-white text-xs font-bold rounded-xl transition-all flex items-center gap-2 shadow-md shadow-[#4D47C3]/20"
                 >
                   <Play size={14} weight="fill" />
                   <span>Start Synchronization</span>
