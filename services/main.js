@@ -244,6 +244,52 @@ async function syncItem(targetToken, good, mode) {
         };
       }
 
+      if (mode === 'image') {
+        const sourceUrl = (good.goodsUrl || '').trim();
+        if (!sourceUrl) {
+          return {
+            success: true,
+            status: 'skipped',
+            message: 'Source product has no image URL'
+          };
+        }
+        if (existingProduct.goodsUrl === sourceUrl) {
+          return {
+            success: true,
+            status: 'skipped',
+            message: 'Image already matches'
+          };
+        }
+
+        console.log(`Updating image for "${good.goodsName}" in target...`);
+        const url = `${BASE_URL}/commcustomgoods/updatecommcustomgoods`;
+        const qauth = getQAuthorization();
+        const headers = {
+          'Content-Type': 'application/json',
+          'authorization': targetToken,
+          'qauthorization': qauth,
+          'Accept': 'application/json, text/plain, */*',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        };
+
+        const payload = {
+          ...existingProduct,
+          goodsUrl: sourceUrl,
+          introduceUrl: sourceUrl
+        };
+
+        const response = await axios.put(url, payload, { headers });
+        if (response.data && response.data.result === 'true') {
+          return {
+            success: true,
+            status: 'synced',
+            message: 'Successfully updated product image'
+          };
+        } else {
+          throw new Error(response.data ? response.data.resultDesc : 'Failed to update product image');
+        }
+      }
+
       // Check if price matches
       const isPriceMatch = 
         existingProduct.goodsPrice === good.goodsPrice &&
@@ -292,9 +338,9 @@ async function syncItem(targetToken, good, mode) {
       }
     }
 
-    // If product does NOT exist in target and we only want to sync prices
-    if (mode === 'price') {
-      console.log(`Product "${good.goodsName}" does not exist in target. Skipping (mode: price).`);
+    // If product does NOT exist in target and we only want to sync prices or images
+    if (mode === 'price' || mode === 'image') {
+      console.log(`Product "${good.goodsName}" does not exist in target. Skipping (mode: ${mode}).`);
       return {
         success: true,
         status: 'skipped',

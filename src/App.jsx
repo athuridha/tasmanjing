@@ -1416,6 +1416,17 @@ export default function App() {
                       >
                         Harga Saja
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => setSyncMode('image')}
+                        className={`px-3 py-1.5 rounded-lg transition-all ${
+                          syncMode === 'image'
+                            ? 'bg-slate-800 text-white font-semibold border border-slate-700 shadow-sm'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        Gambar Saja
+                      </button>
                     </div>
                   </div>
 
@@ -2615,6 +2626,7 @@ export default function App() {
                     {syncMode === 'both' && 'Copy & Price'}
                     {syncMode === 'copy' && 'Copy Only'}
                     {syncMode === 'price' && 'Price Only'}
+                    {syncMode === 'image' && 'Image Only'}
                   </span>
                 </div>
               </div>

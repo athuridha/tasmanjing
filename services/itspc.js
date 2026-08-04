@@ -303,6 +303,53 @@ async function syncItem(targetToken, targetUserUuid, good, mode) {
       (existingProduct.goodsUrl || '').trim() === (good.goodsUrl || '').trim() &&
       isCategoryMatch;
 
+    if (mode === 'image') {
+      const sourceUrl = (good.goodsUrl || '').trim();
+      if (!sourceUrl) {
+        return { success: true, status: 'skipped', message: 'Source product has no image URL' };
+      }
+      const existingPic = (existingProduct.goodsSubInfoVo && existingProduct.goodsSubInfoVo.goodsPic) || '';
+      if (existingPic.trim() === sourceUrl) {
+        return { success: true, status: 'skipped', message: 'Image already matches' };
+      }
+
+      console.log(`Updating ITSPC product image for "${good.goodsName}"...`);
+      const url = 'https://sv.hnzczy.cn/goods/info';
+      const headers = {
+        'Authorization': targetToken.startsWith('Bearer ') ? targetToken : `Bearer ${targetToken}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, text/plain, */*',
+        'User-Agent': 'Mozilla/5.0'
+      };
+
+      const payload = {
+        goodsInfoBo: {
+          id: existingProduct.goodsInfoId,
+          goodsName: good.goodsName,
+          goodsCode: good.goodsCode || existingProduct.goodsInfoVo.goodsCode || '',
+          factory: good.brand || existingProduct.goodsInfoVo.factory || '',
+          goodsCategoryId: targetCategoryId,
+          specs: good.specsDesc || existingProduct.goodsInfoVo.specs || '',
+          unit: existingProduct.goodsInfoVo.unit || '瓶装',
+          actualWeight: existingProduct.goodsInfoVo.actualWeight || null
+        },
+        goodsSubInfoBo: {
+          ...existingProduct.goodsSubInfoVo,
+          id: existingProduct.goodsSubInfoId,
+          mainGoodsId: existingProduct.goodsInfoId,
+          goodsPic: sourceUrl,
+          goodsName: good.goodsName
+        }
+      };
+
+      const response = await axios.put(url, payload, { headers });
+      if (response.data && response.data.code === 200) {
+        return { success: true, status: 'synced', message: 'Successfully updated product image' };
+      } else {
+        throw new Error(response.data ? response.data.msg : 'Failed to update ITSPC product image');
+      }
+    }
+
     if (mode === 'copy' && isDetailsMatch) {
       return { success: true, status: 'skipped', message: 'Details already match' };
     }
@@ -365,7 +412,7 @@ async function syncItem(targetToken, targetUserUuid, good, mode) {
     }
   }
 
-  if (mode === 'price') {
+  if (mode === 'price' || mode === 'image') {
     return { success: true, status: 'skipped', message: 'Product does not exist in target' };
   }
 
