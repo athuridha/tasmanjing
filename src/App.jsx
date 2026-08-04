@@ -4,6 +4,7 @@ import {
   Key, 
   ArrowsClockwise, 
   Play, 
+  Stop,
   CheckCircle, 
   XCircle, 
   MagnifyingGlass, 
@@ -440,6 +441,15 @@ export default function App() {
     setActiveLimitPreset(limit);
   };
 
+  const cancelSyncRef = useRef(false);
+
+  const handleStopSync = () => {
+    if (isSyncing) {
+      cancelSyncRef.current = true;
+      addLog('🛑 [STOP PAKSA] Permintaan penghentian sinkronisasi diterima. Menghentikan...');
+    }
+  };
+
   // --- HANDLERS: SYNC GOODS TO TARGET ---
   const handleSyncGoods = async () => {
     if (isSyncing || selectedIds.size === 0 || !targetToken || !targetUser) return;
@@ -448,6 +458,7 @@ export default function App() {
     const selectedList = currentCatalog.filter(g => selectedIds.has(g.uuid));
     const total = selectedList.length;
 
+    cancelSyncRef.current = false;
     setIsSyncing(true);
     setShowConfirmModal(false);
     
@@ -460,6 +471,11 @@ export default function App() {
     let errorCount = 0;
 
     for (let i = 0; i < total; i++) {
+      if (cancelSyncRef.current) {
+        addLog(`🛑 Sinkronisasi dihentikan paksa oleh pengguna di item ke-${i + 1}/${total}.`);
+        break;
+      }
+
       const good = selectedList[i];
       const currentProgress = i + 1;
       
@@ -484,6 +500,11 @@ export default function App() {
           })
         });
         const data = await response.json();
+
+        if (cancelSyncRef.current) {
+          addLog(`🛑 Sinkronisasi dihentikan paksa oleh pengguna saat memproses "${good.goodsName}".`);
+          break;
+        }
 
         if (response.ok && data.success) {
           if (data.status === 'skipped') {
@@ -510,6 +531,10 @@ export default function App() {
           addLog(`↳ Error: Failed to sync "${good.goodsName}" - ${data.error}`);
         }
       } catch (err) {
+        if (cancelSyncRef.current) {
+          addLog(`🛑 Sinkronisasi dihentikan paksa oleh pengguna.`);
+          break;
+        }
         errorCount++;
         setSyncResults(prev => ({
           ...prev,
@@ -525,11 +550,20 @@ export default function App() {
         error: errorCount
       }));
 
+      if (cancelSyncRef.current) {
+        addLog(`🛑 Sinkronisasi dihentikan paksa oleh pengguna.`);
+        break;
+      }
+
       await new Promise(r => setTimeout(r, 600));
     }
 
     setIsSyncing(false);
-    addLog(`Sync finished. Success: ${successCount}, Skipped: ${skippedCount}, Failed: ${errorCount}.`);
+    if (cancelSyncRef.current) {
+      addLog(`🛑 Sinkronisasi dihentikan oleh pengguna. Diproses: ${successCount + skippedCount + errorCount}/${total} (Berhasil: ${successCount}, Skip: ${skippedCount}, Gagal: ${errorCount}).`);
+    } else {
+      addLog(`Sync finished. Success: ${successCount}, Skipped: ${skippedCount}, Failed: ${errorCount}.`);
+    }
   };
 
   // --- EXCEL PARSING & MATCHING LOGIC ---
@@ -1385,15 +1419,26 @@ export default function App() {
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmModal(true)}
-                    disabled={isSyncing || selectedIds.size === 0 || !targetToken}
-                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 font-semibold text-xs rounded-xl flex items-center gap-2 transition-all shadow-sm active:scale-[0.98]"
-                  >
-                    <Play size={16} weight="fill" />
-                    <span>Sinkronkan Produk Terpilih ({selectedIds.size})</span>
-                  </button>
+                  {isSyncing ? (
+                    <button
+                      type="button"
+                      onClick={handleStopSync}
+                      className="px-6 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl flex items-center gap-2 transition-all shadow-md active:scale-[0.98] animate-pulse"
+                    >
+                      <Stop size={16} weight="fill" />
+                      <span>Stop Paksa Sinkron</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmModal(true)}
+                      disabled={selectedIds.size === 0 || !targetToken}
+                      className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 font-semibold text-xs rounded-xl flex items-center gap-2 transition-all shadow-sm active:scale-[0.98]"
+                    >
+                      <Play size={16} weight="fill" />
+                      <span>Sinkronkan Produk Terpilih ({selectedIds.size})</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -2193,6 +2238,16 @@ export default function App() {
                         <span className="text-rose-400 bg-rose-500/10 px-2.5 py-1 rounded-lg border border-rose-500/20 flex items-center gap-1">
                           <XCircle size={14} /> Gagal: {syncProgress.error}
                         </span>
+                        {isSyncing && (
+                          <button
+                            type="button"
+                            onClick={handleStopSync}
+                            className="ml-2 px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-sm active:scale-95 animate-pulse"
+                          >
+                            <Stop size={14} weight="fill" />
+                            <span>Stop Paksa</span>
+                          </button>
+                        )}
                       </div>
                     </div>
                     <div className="w-full h-3 bg-white/5 rounded-full overflow-hidden p-0.5 border border-white/10">
