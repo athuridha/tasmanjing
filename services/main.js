@@ -113,23 +113,38 @@ async function fetchGoods(token, type) {
   };
 }
 
+// Helper: Extract list of goods safely from various SANY POS response structures
+function extractGoodsList(rawData) {
+  if (!rawData) return [];
+  if (Array.isArray(rawData)) return rawData;
+  if (Array.isArray(rawData.data)) return rawData.data;
+  if (Array.isArray(rawData.list)) return rawData.list;
+  if (Array.isArray(rawData.records)) return rawData.records;
+  if (rawData.data && Array.isArray(rawData.data.data)) return rawData.data.data;
+  if (rawData.data && Array.isArray(rawData.data.list)) return rawData.data.list;
+  return [];
+}
+
 // Helper: Query custom categories of an account
 async function getCategories(token) {
-  const url = `${BASE_URL}/commcustomcategory/querycommcustomcategory?customType=2`;
-  const qauth = getQAuthorization();
-  const headers = {
-    'authorization': token,
-    'qauthorization': qauth,
-    'Accept': 'application/json, text/plain, */*',
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-  };
+  try {
+    const url = `${BASE_URL}/commcustomcategory/querycommcustomcategory?customType=2`;
+    const qauth = getQAuthorization();
+    const headers = {
+      'authorization': token,
+      'qauthorization': qauth,
+      'Accept': 'application/json, text/plain, */*',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    };
 
-  const response = await axios.get(url, { headers });
-  if (response.data && response.data.statusCode === '0') {
-    return response.data.data || [];
-  } else {
-    throw new Error('Failed to query categories');
+    const response = await axios.get(url, { headers });
+    if (response.data && (response.data.statusCode === '0' || response.data.statusCode === 0 || response.data.result === 'true')) {
+      return response.data.data || [];
+    }
+  } catch (err) {
+    console.error('Failed to query categories:', err.message);
   }
+  return [];
 }
 
 // Helper: Create custom category
@@ -161,7 +176,7 @@ async function createCategory(token, typeName) {
 
 // Helper: Check if product exists in target account by barcode or name (robust check to avoid duplicates)
 async function findProductInTarget(token, barcode, name) {
-  const cleanName = name ? name.trim().toLowerCase() : '';
+  const cleanName = name ? common.normalizeName(name) : '';
   const cleanBarcode = barcode ? barcode.trim() : '';
 
   const qauth = getQAuthorization();
@@ -173,14 +188,14 @@ async function findProductInTarget(token, barcode, name) {
   };
 
   // 1. Try to search by name first
-  if (cleanName) {
+  if (name && name.trim()) {
     const urlByName = `${BASE_URL}/commcustomgoods/querycommcustomgoodslist?goodsTypeStr=2&pageSize=100&pageNo=1&cateUuid=&likeCode=${encodeURIComponent(name.trim())}&accout=&goodsStat=&feeStart=&feeEnd=`;
     try {
       const response = await axios.get(urlByName, { headers });
       if (response.data && response.data.result === 'true') {
-        const list = response.data.data ? response.data.data.data : [];
+        const list = extractGoodsList(response.data.data);
         const matched = list.find(g => 
-          (g.goodsName && g.goodsName.trim().toLowerCase() === cleanName) ||
+          (g.goodsName && common.normalizeName(g.goodsName) === cleanName) ||
           (cleanBarcode && g.goodsCode && g.goodsCode.trim() === cleanBarcode)
         );
         if (matched) return matched;
@@ -196,10 +211,10 @@ async function findProductInTarget(token, barcode, name) {
     try {
       const response = await axios.get(urlByBarcode, { headers });
       if (response.data && response.data.result === 'true') {
-        const list = response.data.data ? response.data.data.data : [];
+        const list = extractGoodsList(response.data.data);
         const matched = list.find(g => 
           (g.goodsCode && g.goodsCode.trim() === cleanBarcode) ||
-          (g.goodsName && g.goodsName.trim().toLowerCase() === cleanName)
+          (g.goodsName && common.normalizeName(g.goodsName) === cleanName)
         );
         if (matched) return matched;
       }
