@@ -268,6 +268,8 @@ export default function App() {
   const [excelUpdateTarget, setExcelUpdateTarget] = useState('both'); // 'both', 'cost_only', 'sale_only'
   const [showExcelAdvanced, setShowExcelAdvanced] = useState(false);
   const [showExcelLogs, setShowExcelLogs] = useState(false);
+  const [excelSearchQuery, setExcelSearchQuery] = useState('');
+  const [excelRawPreviewLimit, setExcelRawPreviewLimit] = useState(10);
 
   // Auto-scroll Log Console
   useEffect(() => {
@@ -681,9 +683,17 @@ export default function App() {
           break;
         }
       }
+      const headerCounts = {};
       const headers = rawMatrix[headerRowIndex].map((h, i) => {
-        const str = String(h || '').trim();
-        return str !== '' ? str : `Kolom ${i + 1}`;
+        let str = String(h || '').trim();
+        if (str === '') str = `Kolom ${i + 1}`;
+        if (headerCounts[str]) {
+          headerCounts[str]++;
+          return `${str} (#${headerCounts[str]})`;
+        } else {
+          headerCounts[str] = 1;
+          return str;
+        }
       });
       const dataRows = rawMatrix.slice(headerRowIndex + 1);
       setExcelHeaders(headers);
@@ -940,8 +950,35 @@ export default function App() {
     targetGoods,
     enableFuzzyMatch,
     excelFuzzyThreshold,
-    excelUpdateTarget
   ]);
+
+  const filteredExcelMatches = useMemo(() => {
+    if (!excelMatches.matched) return [];
+    const q = excelSearchQuery.trim().toLowerCase();
+
+    return excelMatches.matched.filter(m => {
+      // 1. Status Filter
+      if (excelFilterStatus === 'NEED_UPDATE' && m.isMatching) return false;
+      if (excelFilterStatus === 'ALREADY_MATCHED' && !m.isMatching) return false;
+      if (excelFilterStatus === 'SIMILAR' && m.matchType !== 'similar') return false;
+      if (excelFilterStatus === 'SYNC_SUCCESS' && syncResults[m.catalogItem.uuid]?.status !== 'success') return false;
+      if (excelFilterStatus === 'SYNC_SKIPPED' && syncResults[m.catalogItem.uuid]?.status !== 'skipped') return false;
+      if (excelFilterStatus === 'SYNC_ERROR' && syncResults[m.catalogItem.uuid]?.status !== 'error') return false;
+
+      // 2. Search Query Filter
+      if (q) {
+        const gName = (m.catalogItem?.goodsName || '').toLowerCase();
+        const gCode = (m.catalogItem?.goodsCode || '').toLowerCase();
+        const exKey = (m.excelKey || '').toLowerCase();
+        const catName = (m.catalogItem?.categoryName || '').toLowerCase();
+        const pyName = (m.catalogItem?.pyName || '').toLowerCase();
+
+        return gName.includes(q) || gCode.includes(q) || exKey.includes(q) || catName.includes(q) || pyName.includes(q);
+      }
+
+      return true;
+    });
+  }, [excelMatches.matched, excelFilterStatus, excelSearchQuery, syncResults]);
 
   useEffect(() => {
     if (excelMatches.matched.length > 0) {
@@ -2678,6 +2715,182 @@ export default function App() {
                           </div>
                         </div>
                       </div>
+
+                      {/* Live Interactive Excel Raw Sheet Preview Table */}
+                      {excelRows.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-white/20 space-y-3">
+                          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <FileXls size={18} className="text-emerald-300" />
+                              <span className="text-xs font-bold text-white">
+                                Preview Data Mentah Excel ({excelRows.length} Baris Data)
+                              </span>
+                              <span className="text-[10px] bg-white/20 text-white px-2.5 py-0.5 rounded-full font-mono">
+                                Sheet: {selectedSheet}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs">
+                              <div className="flex items-center gap-2 text-indigo-100 text-[11px]">
+                                <span>Tampilkan:</span>
+                                <select
+                                  value={excelRawPreviewLimit}
+                                  onChange={(e) => setExcelRawPreviewLimit(Number(e.target.value))}
+                                  className="bg-black/30 text-white border border-white/20 rounded-lg px-2 py-1 text-xs focus:outline-none font-bold"
+                                >
+                                  <option value={5} className="text-[#343C6A]">5 Baris Pertama</option>
+                                  <option value={10} className="text-[#343C6A]">10 Baris Pertama</option>
+                                  <option value={20} className="text-[#343C6A]">20 Baris Pertama</option>
+                                  <option value={50} className="text-[#343C6A]">50 Baris Pertama</option>
+                                </select>
+                              </div>
+                            </div>
+                          </div>
+
+                          <p className="text-[11px] text-indigo-100/90 leading-tight">
+                            Klik pada header kolom di bawah untuk langsung memilih / menetapkan <strong>Key</strong>, <strong>Harga Jual</strong>, atau <strong>Modal (HPP)</strong>:
+                          </p>
+
+                          {/* Visual Legend Badges (No Emojis) */}
+                          <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold">
+                            <span className="px-2.5 py-1 rounded-lg bg-indigo-500/30 text-indigo-200 border border-indigo-400/40 flex items-center gap-1.5 shadow-sm">
+                              <Key size={12} weight="bold" className="text-indigo-300" />
+                              <span>Key / Barcode:</span>
+                              <strong className="text-white font-mono">{excelKeyColumn || '(Belum dipilih)'}</strong>
+                            </span>
+                            <span className="px-2.5 py-1 rounded-lg bg-purple-500/30 text-purple-200 border border-purple-400/40 flex items-center gap-1.5 shadow-sm">
+                              <Tag size={12} weight="bold" className="text-purple-300" />
+                              <span>Harga Jual:</span>
+                              <strong className="text-white font-mono">{excelPriceColumn || '(Abaikan)'}</strong>
+                            </span>
+                            <span className="px-2.5 py-1 rounded-lg bg-amber-500/30 text-amber-200 border border-amber-400/40 flex items-center gap-1.5 shadow-sm">
+                              <Coins size={12} weight="bold" className="text-amber-300" />
+                              <span>Modal / HPP:</span>
+                              <strong className="text-white font-mono">{excelCostColumn || '(Abaikan)'}</strong>
+                            </span>
+                          </div>
+
+                          {/* Raw Preview Table Container matching bottom table design */}
+                          <div className={`max-h-[340px] overflow-auto rounded-2xl border scrollbar-thin shadow-sm ${darkMode ? 'border-slate-800 bg-[#090A0F]' : 'border-[#E6EFF5] bg-white'}`}>
+                            <table className="w-full text-left text-xs border-collapse font-mono">
+                              <thead className={`sticky top-0 uppercase text-[10px] font-bold border-b z-10 ${darkMode ? 'bg-[#12151E] text-slate-400 border-slate-800' : 'bg-[#F9FAFC] text-[#718EBF] border-[#E6EFF5]'}`}>
+                                <tr>
+                                  <th className="p-3 text-center w-10 border-r border-slate-200/50 dark:border-slate-800">#</th>
+                                  {excelHeaders.map((header, hIdx) => {
+                                    const isKey = excelKeyColumn === header;
+                                    const isPrice = excelPriceColumn === header;
+                                    const isCost = excelCostColumn === header;
+
+                                    let colHeaderStyle = darkMode ? 'hover:bg-slate-800/60 text-slate-300' : 'hover:bg-slate-100 text-[#343C6A]';
+                                    if (isKey) colHeaderStyle = darkMode ? 'bg-indigo-500/20 text-indigo-300 border-b-2 border-indigo-500 font-extrabold' : 'bg-[#E8EFFC] text-[#396AFF] border-b-2 border-[#396AFF] font-extrabold';
+                                    else if (isPrice) colHeaderStyle = darkMode ? 'bg-purple-500/20 text-purple-300 border-b-2 border-purple-500 font-extrabold' : 'bg-[#F3E8FF] text-[#9333EA] border-b-2 border-[#9333EA] font-extrabold';
+                                    else if (isCost) colHeaderStyle = darkMode ? 'bg-amber-500/20 text-amber-300 border-b-2 border-amber-500 font-extrabold' : 'bg-[#FEF6E6] text-[#D98200] border-b-2 border-[#D98200] font-extrabold';
+
+                                    return (
+                                      <th 
+                                        key={`hdr_${hIdx}`} 
+                                        className={`p-3 min-w-[150px] transition-all border-r border-slate-200/50 dark:border-slate-800 select-none cursor-pointer group ${colHeaderStyle}`}
+                                        onClick={() => {
+                                          if (!isKey && !isPrice && !isCost) {
+                                            setExcelPriceColumn(header);
+                                          } else if (isPrice) {
+                                            setExcelCostColumn(header);
+                                            setExcelPriceColumn('');
+                                          } else if (isCost) {
+                                            setExcelKeyColumn(header);
+                                            setExcelCostColumn('');
+                                          } else if (isKey) {
+                                            setExcelKeyColumn('');
+                                          }
+                                        }}
+                                        title="Klik untuk mengubah pemetaan kolom"
+                                      >
+                                        <div className="space-y-1.5">
+                                          <div className="flex items-center justify-between gap-1 font-sans">
+                                            <span className="truncate max-w-[135px] font-extrabold text-xs">{header}</span>
+                                            {isKey && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#396AFF] text-white flex items-center gap-1"><Key size={10} weight="bold" /> KEY</span>}
+                                            {isPrice && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#9333EA] text-white flex items-center gap-1"><Tag size={10} weight="bold" /> HARGA</span>}
+                                            {isCost && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#D98200] text-white flex items-center gap-1"><Coins size={10} weight="bold" /> HPP</span>}
+                                          </div>
+
+                                          {/* Quick Action Buttons */}
+                                          <div className="flex items-center gap-1 pt-1" onClick={(e) => e.stopPropagation()}>
+                                            <button
+                                              type="button"
+                                              title="Set sebagai Key Barcode/Nama"
+                                              onClick={() => setExcelKeyColumn(header)}
+                                              className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all flex items-center gap-1 ${
+                                                isKey 
+                                                  ? 'bg-[#396AFF] text-white shadow-sm' 
+                                                  : darkMode ? 'bg-slate-800 hover:bg-[#396AFF] text-slate-300 hover:text-white' : 'bg-slate-200/70 hover:bg-[#396AFF] text-[#343C6A] hover:text-white'
+                                              }`}
+                                            >
+                                              <Key size={10} weight="bold" /> Key
+                                            </button>
+                                            <button
+                                              type="button"
+                                              title="Set sebagai Harga Jual"
+                                              onClick={() => setExcelPriceColumn(header === excelPriceColumn ? '' : header)}
+                                              className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all flex items-center gap-1 ${
+                                                isPrice 
+                                                  ? 'bg-[#9333EA] text-white shadow-sm' 
+                                                  : darkMode ? 'bg-slate-800 hover:bg-[#9333EA] text-slate-300 hover:text-white' : 'bg-slate-200/70 hover:bg-[#9333EA] text-[#343C6A] hover:text-white'
+                                              }`}
+                                            >
+                                              <Tag size={10} weight="bold" /> Harga
+                                            </button>
+                                            <button
+                                              type="button"
+                                              title="Set sebagai Modal / HPP"
+                                              onClick={() => setExcelCostColumn(header === excelCostColumn ? '' : header)}
+                                              className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all flex items-center gap-1 ${
+                                                isCost 
+                                                  ? 'bg-[#D98200] text-white shadow-sm' 
+                                                  : darkMode ? 'bg-slate-800 hover:bg-[#D98200] text-slate-300 hover:text-white' : 'bg-slate-200/70 hover:bg-[#D98200] text-[#343C6A] hover:text-white'
+                                              }`}
+                                            >
+                                              <Coins size={10} weight="bold" /> HPP
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </th>
+                                    );
+                                  })}
+                                </tr>
+                              </thead>
+                              <tbody className={`divide-y ${darkMode ? 'divide-slate-800/60' : 'divide-[#F1F5F9]'}`}>
+                                {excelRows.slice(0, excelRawPreviewLimit).map((row, rIdx) => (
+                                  <tr key={`raw_r_${rIdx}`} className={`transition-colors ${darkMode ? 'hover:bg-[#161924]' : 'hover:bg-[#F8FAFC]'}`}>
+                                    <td className={`p-2.5 text-center font-bold border-r border-slate-200/50 dark:border-slate-800 ${darkMode ? 'text-slate-500' : 'text-[#718EBF]'}`}>{rIdx + 1}</td>
+                                    {excelHeaders.map((header, hIdx) => {
+                                      const val = row[hIdx];
+                                      const cellStr = val !== undefined && val !== null ? String(val) : '';
+
+                                      const isKey = excelKeyColumn === header;
+                                      const isPrice = excelPriceColumn === header;
+                                      const isCost = excelCostColumn === header;
+
+                                      let cellStyle = darkMode ? 'text-slate-300' : 'text-[#343C6A]';
+                                      if (isKey) cellStyle = darkMode ? 'bg-indigo-500/10 text-indigo-300 font-bold border-x border-indigo-500/20' : 'bg-[#E8EFFC]/60 text-[#396AFF] font-bold';
+                                      else if (isPrice) cellStyle = darkMode ? 'bg-purple-500/10 text-purple-300 font-bold border-x border-purple-500/20' : 'bg-[#F3E8FF]/60 text-[#9333EA] font-bold';
+                                      else if (isCost) cellStyle = darkMode ? 'bg-amber-500/10 text-amber-300 font-bold border-x border-amber-500/20' : 'bg-[#FEF6E6]/70 text-[#D98200] font-bold';
+
+                                      return (
+                                        <td 
+                                          key={`raw_c_${rIdx}_${hIdx}`} 
+                                          className={`p-2.5 border-r border-slate-200/50 dark:border-slate-800 truncate max-w-[200px] ${cellStyle}`} 
+                                          title={cellStr}
+                                        >
+                                          {cellStr || <span className={darkMode ? 'text-slate-600 italic' : 'text-slate-300 italic'}>-</span>}
+                                        </td>
+                                      );
+                                    })}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -2728,134 +2941,155 @@ export default function App() {
                 {/* Filter & Selection Control Bar */}
                 {excelMatches.matched.length > 0 && (
                   <div className="space-y-3">
-                    <div className={`flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 p-3 rounded-2xl border text-xs shadow-sm ${darkMode ? 'bg-[#090A0F] border-slate-800' : 'bg-white border-[#E6EFF5]'}`}>
-                      {/* Filter Status Tabs */}
-                      <div className={`flex flex-wrap items-center p-1 rounded-xl border gap-1 font-bold ${darkMode ? 'bg-[#12151E] border-slate-800' : 'bg-[#F4F5F7] border-slate-200'}`}>
-                        <button
-                          type="button"
-                          onClick={() => setExcelFilterStatus('ALL')}
-                          className={`px-3 py-1.5 rounded-lg transition-all ${
-                            excelFilterStatus === 'ALL'
-                              ? 'bg-[#4D47C3] text-white'
-                              : darkMode ? 'text-slate-400 hover:text-white' : 'text-[#718EBF] hover:text-[#343C6A]'
-                          }`}
-                        >
-                          Semua ({excelMatches.matched.length})
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setExcelFilterStatus('NEED_UPDATE')}
-                          className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
-                            excelFilterStatus === 'NEED_UPDATE'
-                              ? 'bg-[#FEF6E6] dark:bg-amber-500/20 text-[#D98200] dark:text-amber-300 border border-[#FFBB38]/40'
-                              : darkMode ? 'text-slate-400 hover:text-amber-300' : 'text-[#718EBF] hover:text-[#D98200]'
-                          }`}
-                        >
-                          <span>Belum Sesuai</span>
-                          <span className="bg-[#FFBB38]/30 text-[#D98200] dark:text-amber-300 px-1.5 py-0.5 rounded-full text-[10px] font-mono">
-                            {excelMatches.differingCount}
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setExcelFilterStatus('ALREADY_MATCHED')}
-                          className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
-                            excelFilterStatus === 'ALREADY_MATCHED'
-                              ? 'bg-[#E7F8F0] dark:bg-emerald-500/20 text-[#16DBCC] border border-[#16DBCC]/40'
-                              : darkMode ? 'text-slate-400 hover:text-[#16DBCC]' : 'text-[#718EBF] hover:text-[#16DBCC]'
-                          }`}
-                        >
-                          <span>Sudah Sesuai</span>
-                          <span className="bg-[#16DBCC]/30 text-[#16DBCC] px-1.5 py-0.5 rounded-full text-[10px] font-mono">
-                            {excelMatches.matchingCount}
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setExcelFilterStatus('SIMILAR')}
-                          className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
-                            excelFilterStatus === 'SIMILAR'
-                              ? 'bg-[#E8EFFC] dark:bg-[#396AFF]/20 text-[#396AFF] border border-[#396AFF]/40'
-                              : darkMode ? 'text-slate-400 hover:text-[#396AFF]' : 'text-[#718EBF] hover:text-[#396AFF]'
-                          }`}
-                        >
-                          <span>Mirip (Fuzzy)</span>
-                          <span className="bg-[#396AFF]/30 text-[#396AFF] px-1.5 py-0.5 rounded-full text-[10px] font-mono">
-                            {excelMatches.similarCount}
-                          </span>
-                        </button>
+                    {/* Search & Filter Top Bar */}
+                    <div className={`p-4 rounded-2xl border space-y-3 shadow-sm ${darkMode ? 'bg-[#090A0F] border-slate-800' : 'bg-white border-[#E6EFF5]'}`}>
+                      {/* Product Search Input Bar */}
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                        <div className="relative flex-1">
+                          <MagnifyingGlass size={16} className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`} />
+                          <input
+                            type="text"
+                            value={excelSearchQuery}
+                            onChange={(e) => setExcelSearchQuery(e.target.value)}
+                            placeholder="Cari nama produk, barcode, key excel, atau kategori..."
+                            className={`w-full pl-10 pr-9 py-2.5 rounded-xl text-xs font-medium border focus:outline-none transition-all ${
+                              darkMode 
+                                ? 'bg-[#12151E] border-slate-700 text-white focus:border-[#4D47C3] placeholder-slate-500' 
+                                : 'bg-[#F8FAFC] border-slate-200 text-[#343C6A] focus:border-[#4D47C3] placeholder-[#8BA3CB]'
+                            }`}
+                          />
+                          {excelSearchQuery && (
+                            <button
+                              type="button"
+                              onClick={() => setExcelSearchQuery('')}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                            >
+                              <XCircle size={16} />
+                            </button>
+                          )}
+                        </div>
+
+                        {excelSearchQuery && (
+                          <div className="text-xs font-bold px-3 py-2 rounded-xl bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 whitespace-nowrap flex items-center justify-between gap-2">
+                            <span>Hasil Cari: <strong className="font-mono">{filteredExcelMatches.length}</strong> / {excelMatches.matched.length} produk</span>
+                            <button 
+                              type="button" 
+                              onClick={() => setExcelSearchQuery('')} 
+                              className="text-[11px] underline hover:text-indigo-700"
+                            >
+                              Reset Search
+                            </button>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Quick Selection Buttons */}
-                      <div className="flex flex-wrap items-center gap-1.5 font-bold text-[11px]">
-                        <button
-                          type="button"
-                          onClick={checkOnlyDifferingExcel}
-                          className="px-3 py-1.5 bg-[#FEF6E6] dark:bg-amber-500/10 hover:bg-[#FDF0D5] text-[#D98200] dark:text-amber-300 border border-[#FFBB38]/30 rounded-xl transition-all"
-                        >
-                          Centang Belum Sesuai ({excelMatches.differingCount})
-                        </button>
-                        <button
-                          type="button"
-                          onClick={checkAllMatchedExcel}
-                          className="px-3 py-1.5 bg-[#E7F8F0] dark:bg-emerald-500/10 hover:bg-[#D3F5E7] text-[#16DBCC] border border-[#16DBCC]/30 rounded-xl transition-all"
-                        >
-                          Centang Semua
-                        </button>
-                        <button
-                          type="button"
-                          onClick={uncheckAllExcel}
-                          className={`px-2.5 py-1.5 border rounded-xl transition-all ${darkMode ? 'bg-[#12151E] hover:bg-slate-800 text-slate-300 border-slate-800' : 'bg-[#F4F5F7] hover:bg-slate-200 text-[#718EBF] border-slate-200'}`}
-                        >
-                          Kosongkan
-                        </button>
+                      {/* Filter Status Tabs & Quick Selection Buttons */}
+                      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 pt-2 border-t border-slate-200/50 dark:border-slate-800">
+                        {/* Filter Status Tabs */}
+                        <div className={`flex flex-wrap items-center p-1 rounded-xl border gap-1 font-bold text-xs ${darkMode ? 'bg-[#12151E] border-slate-800' : 'bg-[#F4F5F7] border-slate-200'}`}>
+                          <button
+                            type="button"
+                            onClick={() => setExcelFilterStatus('ALL')}
+                            className={`px-3 py-1.5 rounded-lg transition-all ${
+                              excelFilterStatus === 'ALL'
+                                ? 'bg-[#4D47C3] text-white'
+                                : darkMode ? 'text-slate-400 hover:text-white' : 'text-[#718EBF] hover:text-[#343C6A]'
+                            }`}
+                          >
+                            Semua ({excelMatches.matched.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setExcelFilterStatus('NEED_UPDATE')}
+                            className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                              excelFilterStatus === 'NEED_UPDATE'
+                                ? 'bg-[#FEF6E6] dark:bg-amber-500/20 text-[#D98200] dark:text-amber-300 border border-[#FFBB38]/40'
+                                : darkMode ? 'text-slate-400 hover:text-amber-300' : 'text-[#718EBF] hover:text-[#D98200]'
+                            }`}
+                          >
+                            <span>Belum Sesuai</span>
+                            <span className="bg-[#FFBB38]/30 text-[#D98200] dark:text-amber-300 px-1.5 py-0.5 rounded-full text-[10px] font-mono">
+                              {excelMatches.differingCount}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setExcelFilterStatus('ALREADY_MATCHED')}
+                            className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                              excelFilterStatus === 'ALREADY_MATCHED'
+                                ? 'bg-[#E7F8F0] dark:bg-emerald-500/20 text-[#16DBCC] border border-[#16DBCC]/40'
+                                : darkMode ? 'text-slate-400 hover:text-[#16DBCC]' : 'text-[#718EBF] hover:text-[#16DBCC]'
+                            }`}
+                          >
+                            <span>Sudah Sesuai</span>
+                            <span className="bg-[#16DBCC]/30 text-[#16DBCC] px-1.5 py-0.5 rounded-full text-[10px] font-mono">
+                              {excelMatches.matchingCount}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setExcelFilterStatus('SIMILAR')}
+                            className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                              excelFilterStatus === 'SIMILAR'
+                                ? 'bg-[#E8EFFC] dark:bg-[#396AFF]/20 text-[#396AFF] border border-[#396AFF]/40'
+                                : darkMode ? 'text-slate-400 hover:text-[#396AFF]' : 'text-[#718EBF] hover:text-[#396AFF]'
+                            }`}
+                          >
+                            <span>Mirip (Fuzzy)</span>
+                            <span className="bg-[#396AFF]/30 text-[#396AFF] px-1.5 py-0.5 rounded-full text-[10px] font-mono">
+                              {excelMatches.similarCount}
+                            </span>
+                          </button>
+                        </div>
+
+                        {/* Quick Selection Buttons */}
+                        <div className="flex flex-wrap items-center gap-1.5 font-bold text-[11px]">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = new Set(excelCheckedUuids);
+                              filteredExcelMatches.filter(m => !m.isMatching).forEach(m => next.add(m.catalogItem.uuid));
+                              setExcelCheckedUuids(next);
+                            }}
+                            className="px-3 py-1.5 bg-[#FEF6E6] dark:bg-amber-500/10 hover:bg-[#FDF0D5] text-[#D98200] dark:text-amber-300 border border-[#FFBB38]/30 rounded-xl transition-all"
+                          >
+                            Centang Belum Sesuai ({filteredExcelMatches.filter(m => !m.isMatching).length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = new Set(excelCheckedUuids);
+                              filteredExcelMatches.forEach(m => next.add(m.catalogItem.uuid));
+                              setExcelCheckedUuids(next);
+                            }}
+                            className="px-3 py-1.5 bg-[#E7F8F0] dark:bg-emerald-500/10 hover:bg-[#D3F5E7] text-[#16DBCC] border border-[#16DBCC]/30 rounded-xl transition-all"
+                          >
+                            Centang Hasil ({filteredExcelMatches.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={uncheckAllExcel}
+                            className={`px-2.5 py-1.5 border rounded-xl transition-all ${darkMode ? 'bg-[#12151E] hover:bg-slate-800 text-slate-300 border-slate-800' : 'bg-[#F4F5F7] hover:bg-slate-200 text-[#718EBF] border-slate-200'}`}
+                          >
+                            Kosongkan
+                          </button>
+                        </div>
                       </div>
                     </div>
 
                     {/* Excel Preview Table */}
                     <div className={`max-h-[500px] overflow-y-auto rounded-2xl border scrollbar-thin shadow-sm ${darkMode ? 'border-slate-800 bg-[#090A0F]' : 'border-[#E6EFF5] bg-white'}`}>
                       <table className="w-full text-left text-xs border-collapse font-mono">
-                        <thead className={`sticky top-0 uppercase text-[10px] font-bold border-b ${darkMode ? 'bg-[#12151E] text-slate-400 border-slate-800' : 'bg-[#F9FAFC] text-[#718EBF] border-[#E6EFF5]'}`}>
+                        <thead className={`sticky top-0 uppercase text-[10px] font-bold border-b z-10 ${darkMode ? 'bg-[#12151E] text-slate-400 border-slate-800' : 'bg-[#F9FAFC] text-[#718EBF] border-[#E6EFF5]'}`}>
                           <tr>
                             <th className="p-3 text-center w-10">
                               <input
                                 type="checkbox"
                                 checked={
-                                  excelMatches.matched
-                                    .filter(m => {
-                                      if (excelFilterStatus === 'NEED_UPDATE') return !m.isMatching;
-                                      if (excelFilterStatus === 'ALREADY_MATCHED') return m.isMatching;
-                                      if (excelFilterStatus === 'SIMILAR') return m.matchType === 'similar';
-                                      if (excelFilterStatus === 'SYNC_SUCCESS') return syncResults[m.catalogItem.uuid]?.status === 'success';
-                                      if (excelFilterStatus === 'SYNC_SKIPPED') return syncResults[m.catalogItem.uuid]?.status === 'skipped';
-                                      if (excelFilterStatus === 'SYNC_ERROR') return syncResults[m.catalogItem.uuid]?.status === 'error';
-                                      return true;
-                                    })
-                                    .length > 0 &&
-                                  excelMatches.matched
-                                    .filter(m => {
-                                      if (excelFilterStatus === 'NEED_UPDATE') return !m.isMatching;
-                                      if (excelFilterStatus === 'ALREADY_MATCHED') return m.isMatching;
-                                      if (excelFilterStatus === 'SIMILAR') return m.matchType === 'similar';
-                                      if (excelFilterStatus === 'SYNC_SUCCESS') return syncResults[m.catalogItem.uuid]?.status === 'success';
-                                      if (excelFilterStatus === 'SYNC_SKIPPED') return syncResults[m.catalogItem.uuid]?.status === 'skipped';
-                                      if (excelFilterStatus === 'SYNC_ERROR') return syncResults[m.catalogItem.uuid]?.status === 'error';
-                                      return true;
-                                    })
-                                    .every(m => excelCheckedUuids.has(m.catalogItem.uuid))
+                                  filteredExcelMatches.length > 0 &&
+                                  filteredExcelMatches.every(m => excelCheckedUuids.has(m.catalogItem.uuid))
                                 }
-                                onChange={() => {
-                                  const filtered = excelMatches.matched.filter(m => {
-                                    if (excelFilterStatus === 'NEED_UPDATE') return !m.isMatching;
-                                    if (excelFilterStatus === 'ALREADY_MATCHED') return m.isMatching;
-                                    if (excelFilterStatus === 'SIMILAR') return m.matchType === 'similar';
-                                    if (excelFilterStatus === 'SYNC_SUCCESS') return syncResults[m.catalogItem.uuid]?.status === 'success';
-                                    if (excelFilterStatus === 'SYNC_SKIPPED') return syncResults[m.catalogItem.uuid]?.status === 'skipped';
-                                    if (excelFilterStatus === 'SYNC_ERROR') return syncResults[m.catalogItem.uuid]?.status === 'error';
-                                    return true;
-                                  });
-                                  toggleExcelCheckAllFiltered(filtered);
-                                }}
+                                onChange={() => toggleExcelCheckAllFiltered(filteredExcelMatches)}
                                 className="w-4 h-4 rounded text-[#4D47C3] focus:ring-[#4D47C3]/20 cursor-pointer"
                               />
                             </th>
@@ -2870,90 +3104,92 @@ export default function App() {
                           </tr>
                         </thead>
                         <tbody className={`divide-y ${darkMode ? 'divide-slate-800/60' : 'divide-[#F1F5F9]'}`}>
-                          {excelMatches.matched
-                            .filter(m => {
-                              if (excelFilterStatus === 'NEED_UPDATE') return !m.isMatching;
-                              if (excelFilterStatus === 'ALREADY_MATCHED') return m.isMatching;
-                              if (excelFilterStatus === 'SIMILAR') return m.matchType === 'similar';
-                              if (excelFilterStatus === 'SYNC_SUCCESS') return syncResults[m.catalogItem.uuid]?.status === 'success';
-                              if (excelFilterStatus === 'SYNC_SKIPPED') return syncResults[m.catalogItem.uuid]?.status === 'skipped';
-                              if (excelFilterStatus === 'SYNC_ERROR') return syncResults[m.catalogItem.uuid]?.status === 'error';
-                              return true;
-                            })
-                            .map((m, idx) => {
-                            const sRes = syncResults[m.catalogItem.uuid];
-                            return (
-                            <tr key={idx} className={`transition-colors ${darkMode ? 'hover:bg-[#161924]' : 'hover:bg-[#F8FAFC]'}`}>
-                              <td className="p-3 text-center">
-                                <input
-                                  type="checkbox"
-                                  checked={excelCheckedUuids.has(m.catalogItem.uuid)}
-                                  onChange={() => toggleExcelCheckItem(m.catalogItem.uuid)}
-                                  className="w-4 h-4 rounded text-[#4D47C3] focus:ring-[#4D47C3]/20 cursor-pointer"
-                                />
+                          {filteredExcelMatches.length === 0 ? (
+                            <tr>
+                              <td colSpan={9} className="p-8 text-center text-slate-400 font-sans">
+                                <div className="flex flex-col items-center justify-center gap-2">
+                                  <MagnifyingGlass size={28} className="text-slate-400 opacity-60" />
+                                  <span className="font-bold text-sm">Tidak ada produk yang cocok</span>
+                                  <span className="text-xs text-slate-500">Coba kata kunci pencarian lain atau sesuaikan filter status</span>
+                                </div>
                               </td>
-                              <td className={`p-3 ${darkMode ? 'text-slate-500' : 'text-[#718EBF]'}`}>{m.rowNum}</td>
-                              <td className={`p-3 font-sans font-bold ${darkMode ? 'text-white' : 'text-[#343C6A]'}`}>{m.catalogItem.goodsName}</td>
-                              <td className={`p-3 ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>{m.excelKey}</td>
-                              <td className="p-3 text-center font-sans">
-                                {m.matchType === 'exact' ? (
-                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#E7F8F0] dark:bg-[#16DBCC]/10 text-[#16DBCC] border border-[#16DBCC]/30">
-                                    Persis (100%)
-                                  </span>
-                                ) : (
-                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#E8EFFC] dark:bg-[#396AFF]/10 text-[#396AFF] border border-[#396AFF]/30">
-                                    Mirip ({Math.round(m.similarityScore * 100)}%)
-                                  </span>
-                                )}
-                              </td>
-                              <td className="p-3 text-center font-sans">
-                                {m.isMatching ? (
-                                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#E7F8F0] dark:bg-[#16DBCC]/10 text-[#16DBCC] border border-[#16DBCC]/30">Sudah Sesuai</span>
-                                ) : (
-                                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#FEF6E6] dark:bg-amber-500/10 text-[#D98200] dark:text-amber-300 border border-[#FFBB38]/40">Belum Sesuai</span>
-                                )}
-                              </td>
-                              <td className="p-3 text-center font-sans">
-                                {sRes ? (
-                                  sRes.status === 'success' ? (
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#E7F8F0] dark:bg-[#16DBCC]/10 text-[#16DBCC] border border-[#16DBCC]/30">
-                                      <CheckCircle size={12} />
-                                      Berhasil
-                                    </span>
-                                  ) : sRes.status === 'skipped' ? (
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#E8EFFC] dark:bg-[#396AFF]/10 text-[#396AFF] border border-[#396AFF]/30" title={sRes.message}>
-                                      <Info size={12} />
-                                      Skip
-                                    </span>
-                                  ) : (
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#FFE8EC] dark:bg-rose-500/10 text-[#FF4B4A] border border-[#FF4B4A]/30" title={sRes.message}>
-                                      <XCircle size={12} />
-                                      Gagal
-                                    </span>
-                                  )
-                                ) : (
-                                  <span className={`text-[10px] font-mono ${darkMode ? 'text-slate-600' : 'text-[#718EBF]'}`}>Belum Sync</span>
-                                )}
-                              </td>
-                              {excelPriceColumn && (
-                                <td className="p-3 text-right">
-                                  <span className={`line-through text-[11px] mr-2 ${darkMode ? 'text-slate-500' : 'text-[#8BA3CB]'}`}>Rp {m.currentSalePrice.toLocaleString('id-ID')}</span>
-                                  <span className={`font-extrabold ${m.hasSaleChange ? 'text-[#4D47C3]' : darkMode ? 'text-slate-200' : 'text-[#343C6A]'}`}>
-                                    Rp {m.newSalePrice.toLocaleString('id-ID')}
-                                  </span>
-                                </td>
-                              )}
-                              {excelCostColumn && (
-                                <td className="p-3 text-right">
-                                  <span className={`line-through text-[11px] mr-2 ${darkMode ? 'text-slate-500' : 'text-[#8BA3CB]'}`}>Rp {m.currentCostPrice.toLocaleString('id-ID')}</span>
-                                  <span className={`font-extrabold ${m.hasCostChange ? 'text-[#D98200] dark:text-amber-400' : darkMode ? 'text-slate-200' : 'text-[#343C6A]'}`}>
-                                    Rp {m.newCostPrice.toLocaleString('id-ID')}
-                                  </span>
-                                </td>
-                              )}
                             </tr>
-                          );
-                          })}
+                          ) : (
+                            filteredExcelMatches.map((m, idx) => {
+                              const sRes = syncResults[m.catalogItem.uuid];
+                              return (
+                                <tr key={idx} className={`transition-colors ${darkMode ? 'hover:bg-[#161924]' : 'hover:bg-[#F8FAFC]'}`}>
+                                  <td className="p-3 text-center">
+                                    <input
+                                      type="checkbox"
+                                      checked={excelCheckedUuids.has(m.catalogItem.uuid)}
+                                      onChange={() => toggleExcelCheckItem(m.catalogItem.uuid)}
+                                      className="w-4 h-4 rounded text-[#4D47C3] focus:ring-[#4D47C3]/20 cursor-pointer"
+                                    />
+                                  </td>
+                                  <td className={`p-3 ${darkMode ? 'text-slate-500' : 'text-[#718EBF]'}`}>{m.rowNum}</td>
+                                  <td className={`p-3 font-sans font-bold ${darkMode ? 'text-white' : 'text-[#343C6A]'}`}>{m.catalogItem.goodsName}</td>
+                                  <td className={`p-3 ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>{m.excelKey}</td>
+                                  <td className="p-3 text-center font-sans">
+                                    {m.matchType === 'exact' ? (
+                                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#E7F8F0] dark:bg-[#16DBCC]/10 text-[#16DBCC] border border-[#16DBCC]/30">
+                                        Persis (100%)
+                                      </span>
+                                    ) : (
+                                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#E8EFFC] dark:bg-[#396AFF]/10 text-[#396AFF] border border-[#396AFF]/30">
+                                        Mirip ({Math.round(m.similarityScore * 100)}%)
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="p-3 text-center font-sans">
+                                    {m.isMatching ? (
+                                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#E7F8F0] dark:bg-[#16DBCC]/10 text-[#16DBCC] border border-[#16DBCC]/30">Sudah Sesuai</span>
+                                    ) : (
+                                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#FEF6E6] dark:bg-amber-500/10 text-[#D98200] dark:text-amber-300 border border-[#FFBB38]/40">Belum Sesuai</span>
+                                    )}
+                                  </td>
+                                  <td className="p-3 text-center font-sans">
+                                    {sRes ? (
+                                      sRes.status === 'success' ? (
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#E7F8F0] dark:bg-[#16DBCC]/10 text-[#16DBCC] border border-[#16DBCC]/30">
+                                          <CheckCircle size={12} />
+                                          Berhasil
+                                        </span>
+                                      ) : sRes.status === 'skipped' ? (
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#E8EFFC] dark:bg-[#396AFF]/10 text-[#396AFF] border border-[#396AFF]/30" title={sRes.message}>
+                                          <Info size={12} />
+                                          Skip
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#FFE8EC] dark:bg-rose-500/10 text-[#FF4B4A] border border-[#FF4B4A]/30" title={sRes.message}>
+                                          <XCircle size={12} />
+                                          Gagal
+                                        </span>
+                                      )
+                                    ) : (
+                                      <span className={`text-[10px] font-mono ${darkMode ? 'text-slate-600' : 'text-[#718EBF]'}`}>Belum Sync</span>
+                                    )}
+                                  </td>
+                                  {excelPriceColumn && (
+                                    <td className="p-3 text-right">
+                                      <span className={`line-through text-[11px] mr-2 ${darkMode ? 'text-slate-500' : 'text-[#8BA3CB]'}`}>Rp {m.currentSalePrice.toLocaleString('id-ID')}</span>
+                                      <span className={`font-extrabold ${m.hasSaleChange ? 'text-[#4D47C3]' : darkMode ? 'text-slate-200' : 'text-[#343C6A]'}`}>
+                                        Rp {m.newSalePrice.toLocaleString('id-ID')}
+                                      </span>
+                                    </td>
+                                  )}
+                                  {excelCostColumn && (
+                                    <td className="p-3 text-right">
+                                      <span className={`line-through text-[11px] mr-2 ${darkMode ? 'text-slate-500' : 'text-[#8BA3CB]'}`}>Rp {m.currentCostPrice.toLocaleString('id-ID')}</span>
+                                      <span className={`font-extrabold ${m.hasCostChange ? 'text-[#D98200] dark:text-amber-400' : darkMode ? 'text-slate-200' : 'text-[#343C6A]'}`}>
+                                        Rp {m.newCostPrice.toLocaleString('id-ID')}
+                                      </span>
+                                    </td>
+                                  )}
+                                </tr>
+                              );
+                            })
+                          )}
                         </tbody>
                       </table>
                     </div>
