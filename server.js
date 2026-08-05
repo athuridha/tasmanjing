@@ -197,6 +197,21 @@ app.post('/api/yyvendor-add-category', async (req, res) => {
   }
 });
 
+// 3f. VM Putih Sales Report endpoint
+app.post('/api/sales-report', async (req, res) => {
+  const { token, date } = req.body;
+  if (!token) {
+    return res.status(400).json({ error: 'token is required' });
+  }
+  try {
+    const report = await mainService.fetchSalesReport(token, date);
+    return res.json(report);
+  } catch (err) {
+    console.error('Fetch Sales Report error:', err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // 4. Download all product images endpoint
 app.post('/api/download-images', async (req, res) => {
   const { username, goods } = req.body;

@@ -28,36 +28,47 @@ function getQAuthorization() {
   return `${t}@@@${sign}`;
 }
 
-// 1. Login endpoint
+// 1. Login endpoint with multi-domain fallback (hk.hnzczy.cn & www.hnzczy.cn)
 async function login(userAccount, userPwd, type) {
-  const url = `${BASE_URL}/sys/login`;
-  const qauth = getQAuthorization();
-  
-  const payload = {
-    userAccount: userAccount.trim(),
-    userPwd: userPwd.trim(),
-    version: '1.1.70'
-  };
+  const baseUrls = ['https://hk.hnzczy.cn/ms1', 'https://www.hnzczy.cn/ms1'];
+  let lastError = null;
 
-  const headers = {
-    'Content-Type': 'application/json',
-    'qauthorization': qauth,
-    'Accept': 'application/json, text/plain, */*',
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-  };
-
-  const response = await axios.post(url, payload, { headers });
-  
-  if (response.data && response.data.result === 'true') {
-    const token = response.headers['authorization'];
-    return {
-      success: true,
-      token: token,
-      user: response.data.data
+  for (const baseUrl of baseUrls) {
+    const url = `${baseUrl}/sys/login`;
+    const qauth = getQAuthorization();
+    
+    const payload = {
+      userAccount: userAccount.trim(),
+      userPwd: userPwd.trim(),
+      version: '1.1.70'
     };
-  } else {
-    throw new Error(response.data ? response.data.resultDesc : 'Login failed');
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'qauthorization': qauth,
+      'Accept': 'application/json, text/plain, */*',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    };
+
+    try {
+      const response = await axios.post(url, payload, { headers, timeout: 10000 });
+      if (response.data && (response.data.result === 'true' || response.data.statusCode === 0)) {
+        const token = response.headers['authorization'];
+        return {
+          success: true,
+          token: token,
+          user: response.data.data
+        };
+      } else if (response.data && response.data.resultDesc) {
+        lastError = new Error(response.data.resultDesc);
+      }
+    } catch (err) {
+      console.warn(`[Login] Failed on ${baseUrl}:`, err.message);
+      lastError = err;
+    }
   }
+
+  throw lastError || new Error('Login failed');
 }
 
 // 2. Fetch all goods endpoint (with automatic pagination)
@@ -480,11 +491,94 @@ async function exportCsv(token) {
   return allGoods;
 }
 
+// 5. VM Putih Sales Report endpoint (supporting hk.hnzczy.cn peopleOrder list)
+async function fetchSalesReport(token, dateStr) {
+  try {
+    const qauth = getQAuthorization();
+    const headers = {
+      'authorization': token,
+      'qauthorization': qauth,
+      'Accept': 'application/json, text/plain, */*',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    };
+
+    const today = dateStr || new Date().toISOString().split('T')[0];
+    const startTime = `${today} 00:00:00`;
+    const endTime = `${today} 23:59:59`;
+
+    const baseUrls = ['https://hk.hnzczy.cn/ms1', 'https://www.hnzczy.cn/ms1'];
+    let salesData = [];
+    let machines = [];
+
+    for (const baseUrl of baseUrls) {
+      // 1. Try peopleOrder query order list
+      try {
+        const orderUrl = `${baseUrl}/sysorder/querysysorderlist?pageNo=1&pageSize=1000&startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}&startDate=${today}&endDate=${today}`;
+        const response = await axios.get(orderUrl, { headers, timeout: 10000 });
+        if (response.data && (response.data.result === 'true' || response.data.statusCode === 0)) {
+          const raw = response.data.data;
+          const list = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.records) ? raw.records : (raw && Array.isArray(raw.list) ? raw.list : []));
+          if (list.length > 0) {
+            salesData = list;
+            break;
+          }
+        }
+      } catch (e) {
+        console.warn(`[peopleOrder] Could not query ${baseUrl}/sysorder/querysysorderlist:`, e.message);
+      }
+
+      // 2. Try sysorderstat endpoint
+      if (salesData.length === 0) {
+        try {
+          const orderStatUrl = `${baseUrl}/sysorder/querysysorderstat?startDate=${today}&endDate=${today}`;
+          const response = await axios.get(orderStatUrl, { headers, timeout: 10000 });
+          if (response.data && (response.data.result === 'true' || response.data.statusCode === 0)) {
+            const raw = response.data.data;
+            const list = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.records) ? raw.records : []);
+            if (list.length > 0) {
+              salesData = list;
+              break;
+            }
+          }
+        } catch (e) {
+          console.warn(`[peopleOrder] Could not query ${baseUrl}/sysorder/querysysorderstat:`, e.message);
+        }
+      }
+    }
+
+    // Also fetch machine list status
+    for (const baseUrl of baseUrls) {
+      try {
+        const machineUrl = `${baseUrl}/machine/querymachinelist?pageNo=1&pageSize=500`;
+        const response = await axios.get(machineUrl, { headers, timeout: 10000 });
+        if (response.data && (response.data.result === 'true' || response.data.statusCode === 0)) {
+          const raw = response.data.data;
+          machines = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.records) ? raw.records : []);
+          if (machines.length > 0) break;
+        }
+      } catch (e) {
+        console.warn(`Could not query machine list from ${baseUrl}:`, e.message);
+      }
+    }
+
+    return {
+      success: true,
+      date: today,
+      machines,
+      salesData
+    };
+  } catch (err) {
+    console.error('Error fetching sales report:', err.message);
+    throw err;
+  }
+}
+
 module.exports = {
   login,
   fetchGoods,
   syncItem,
   exportCsv,
   getCategories,
-  createCategory
+  createCategory,
+  fetchSalesReport
 };

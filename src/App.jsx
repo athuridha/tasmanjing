@@ -23,9 +23,15 @@ import {
   CaretDown,
   Sun,
   Moon,
-  List
+  List,
+  TrendUp,
+  FileXls,
+  Plus,
+  Calculator,
+  Calendar
 } from '@phosphor-icons/react';
 
+// ============================================================
 export default function App() {
   // Environment Detector for Vercel vs Local Laragon
   const isVercel = typeof window !== 'undefined' && (
@@ -33,8 +39,22 @@ export default function App() {
     window.location.hostname.includes('vercel')
   );
 
-  // Active Top Navigation Tab: 'sync' (Halaman Utama / Vercel layout) | 'excel' (Penyesuaian Harga Excel)
+  // Active Top Navigation Tab: 'sync' (Halaman Utama / Vercel layout) | 'excel' (Penyesuaian Harga Excel) | 'sales' (Daily Sales Report VM Putih)
   const [activeNavTab, setActiveNavTab] = useState('sync');
+
+  // --- DAILY SALES REPORT STATE (100% DYNAMIC - ZERO HARDCODED DATA) ---
+  const [salesReportDate, setSalesReportDate] = useState(() => {
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  });
+  const [salesCostPct, setSalesCostPct] = useState(65);
+  const [salesSearchQuery, setSalesSearchQuery] = useState('');
+  const [salesReportRows, setSalesReportRows] = useState([]); // 100% Dynamic data from uploaded Excel
+  const [isFetchingSalesReport, setIsFetchingSalesReport] = useState(false);
+  const [showAddSalesModal, setShowAddSalesModal] = useState(false);
 
   // Sidebar Collapse state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -157,9 +177,62 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
 
-  // Manual Price Adjustment
+  // Manual Price Adjustment & Profit Margin Generator
   const [priceAdjMethod, setPriceAdjMethod] = useState('margin_cost');
   const [priceAdjValue, setPriceAdjValue] = useState('');
+  const [globalMarginPct, setGlobalMarginPct] = useState(30); // Default 30% margin from buying price
+  const [marginRoundingMode, setMarginRoundingMode] = useState('1000'); // 'none', '500', '1000'
+  const [marginTargetScope, setMarginTargetScope] = useState('selected'); // 'selected' or 'all'
+
+  const calculatePriceWithMargin = (costPrice, marginPct, roundingMode = '1000') => {
+    const cost = parseFloat(costPrice) || 0;
+    if (cost <= 0) return 0;
+    
+    let newPrice = cost * (1 + (parseFloat(marginPct) || 0) / 100);
+    
+    if (roundingMode === '1000') {
+      newPrice = Math.ceil(newPrice / 1000) * 1000;
+    } else if (roundingMode === '500') {
+      newPrice = Math.ceil(newPrice / 500) * 500;
+    } else {
+      newPrice = Math.round(newPrice);
+    }
+    
+    return newPrice;
+  };
+
+  const handleApplyMarginToGoods = () => {
+    if (goods.length === 0) {
+      alert('Katalog produk source masih kosong.');
+      return;
+    }
+
+    const marginPct = parseFloat(globalMarginPct) || 0;
+    let count = 0;
+
+    setGoods(prevGoods => {
+      return prevGoods.map(g => {
+        const isTargeted = marginTargetScope === 'selected' ? selectedIds.has(g.uuid) : true;
+        if (!isTargeted) return g;
+
+        const buyingPrice = parseFloat(g.costPrice || g.fee || 0);
+        if (buyingPrice <= 0) return g;
+
+        const calculatedSellingPrice = calculatePriceWithMargin(buyingPrice, marginPct, marginRoundingMode);
+        count++;
+
+        return {
+          ...g,
+          goodsPrice: calculatedSellingPrice,
+          salePrice: calculatedSellingPrice,
+          price: calculatedSellingPrice,
+          appliedMarginPct: marginPct
+        };
+      });
+    });
+
+    addLog(`Berhasil menghitung & mengupdate harga jual ${count} produk berdasarkan margin ${marginPct}% dari harga beli.`);
+  };
 
   // Sync Progress State
   const [isSyncing, setIsSyncing] = useState(false);
@@ -1007,6 +1080,250 @@ export default function App() {
     });
   }, [goods, targetGoods, searchQuery, selectedCategory, activeCatalogTab]);
 
+  // --- DAILY SALES REPORT COMPUTATIONS & DYNAMIC EXCEL PARSER ---
+  const salesSummary = useMemo(() => {
+    let totalOnline = 0;
+    let totalOffline = 0;
+    let totalSales = 0;
+    let totalTran = 0;
+
+    salesReportRows.forEach(row => {
+      totalOnline += Number(row.vmOnline || 0);
+      totalOffline += Number(row.vmOffline || 0);
+      totalSales += Number(row.sales || 0);
+      totalTran += Number(row.jumlahTran || 0);
+    });
+
+    const totalCost = Math.round(totalSales * (salesCostPct / 100));
+    const totalProfit = totalSales - totalCost;
+    const avgCheck = totalTran > 0 ? Math.round(totalSales / totalTran) : (totalOnline > 0 ? Math.round(totalSales / totalOnline) : 0);
+
+    return { totalOnline, totalOffline, totalSales, totalCost, totalProfit, avgCheck, totalTran };
+  }, [salesReportRows, salesCostPct]);
+
+  const filteredSalesData = useMemo(() => {
+    if (!salesSearchQuery.trim()) return salesReportRows;
+    const q = salesSearchQuery.toLowerCase();
+    return salesReportRows.filter(r => 
+      (r.account && String(r.account).toLowerCase().includes(q)) ||
+      (r.remarks && String(r.remarks).toLowerCase().includes(q))
+    );
+  }, [salesReportRows, salesSearchQuery]);
+
+  const handleExportSalesExcel = () => {
+    if (salesReportRows.length === 0) return;
+
+    const exportRows = salesReportRows.map(r => {
+      const cost = Math.round(r.sales * (salesCostPct / 100));
+      const profit = r.sales - cost;
+      const share = salesSummary.totalSales > 0 ? ((r.sales / salesSummary.totalSales) * 100).toFixed(1) + '%' : '0%';
+      const avgCheck = r.jumlahTran > 0 ? Math.round(r.sales / r.jumlahTran) : (r.vmOnline > 0 ? Math.round(r.sales / r.vmOnline) : 0);
+
+      return {
+        'Account': r.account,
+        'Remarks': r.remarks,
+        'VM ONLINE': r.vmOnline,
+        'VM OFFLINE': r.vmOffline,
+        'SALES': r.sales,
+        'SHARE': share,
+        [`COST ${salesCostPct}%`]: cost,
+        'PROFIT': profit,
+        'AVG. CHECK': avgCheck,
+        'JUMLAHTRAN': r.jumlahTran
+      };
+    });
+
+    // Add TTL Total Summary Row
+    exportRows.push({
+      'Account': 'TTL',
+      'Remarks': 'TOTAL SUMMARY',
+      'VM ONLINE': salesSummary.totalOnline,
+      'VM OFFLINE': salesSummary.totalOffline,
+      'SALES': salesSummary.totalSales,
+      'SHARE': '100%',
+      [`COST ${salesCostPct}%`]: salesSummary.totalCost,
+      'PROFIT': salesSummary.totalProfit,
+      'AVG. CHECK': salesSummary.avgCheck,
+      'JUMLAHTRAN': salesSummary.totalTran
+    });
+
+    const ws = XLSX.utils.json_to_sheet(exportRows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Daily Sales Report");
+    XLSX.writeFile(wb, `DAILY_SALES_REPORT_${salesReportDate.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`);
+  };
+
+  // API Sales Report Fetcher (Login session required)
+  const handleFetchSalesReportFromApi = async () => {
+    if (!sourceToken) {
+      alert('Silakan login terlebih dahulu ke Akun Sumber Vending Portal pada baris login di atas.');
+      return;
+    }
+
+    setIsFetchingSalesReport(true);
+    try {
+      const res = await fetch('/api/sales-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: sourceToken, date: salesReportDate })
+      });
+
+      const responseText = await res.text();
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        throw new Error('Response server bukan JSON valid. Server backend (node server.js) sedang memuat ulang.');
+      }
+
+      if (data.success) {
+        let apiRows = [];
+        if (data.salesData && Array.isArray(data.salesData) && data.salesData.length > 0) {
+          apiRows = data.salesData.map((item, idx) => ({
+            id: idx + 1,
+            account: item.account || item.terminalName || item.merchantName || `Account ${idx + 1}`,
+            remarks: item.remarks || item.terminalName || 'Vending Account',
+            vmOnline: parseInt(item.vmOnline || item.onlineCount || 1, 10),
+            vmOffline: parseInt(item.vmOffline || item.offlineCount || 0, 10),
+            sales: parseFloat(item.sales || item.totalFee || item.orderAmount || 0),
+            jumlahTran: parseInt(item.jumlahTran || item.orderCount || 0, 10)
+          }));
+        } else if (data.machines && Array.isArray(data.machines)) {
+          apiRows = data.machines.map((m, idx) => ({
+            id: idx + 1,
+            account: m.deviceCode || m.machineUuid || `VM_${idx + 1}`,
+            remarks: m.deviceName || m.machineName || 'Vending Machine',
+            vmOnline: m.onlineStat === 1 ? 1 : 0,
+            vmOffline: m.onlineStat === 0 ? 1 : 0,
+            sales: 0,
+            jumlahTran: 0
+          }));
+        }
+
+        if (apiRows.length > 0) {
+          setSalesReportRows(apiRows);
+          addLog(`Berhasil mengambil ${apiRows.length} akun penjualan via API Vending Portal.`);
+        } else {
+          alert('Berhasil terhubung ke API Vending Portal, tetapi tidak ada data transaksi ditemukan pada tanggal ' + salesReportDate);
+        }
+      } else {
+        alert(data.error || 'Gagal mengambil data sales report via API.');
+      }
+    } catch (err) {
+      console.error('API Fetch Sales Report Error:', err);
+      alert('Gagal menghubungi server API: ' + err.message);
+    } finally {
+      setIsFetchingSalesReport(false);
+    }
+  };
+
+  // Smart Multi-Format Vending Export Excel Upload Parser (100% Dynamic)
+  const handleUploadSalesExcel = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const wb = XLSX.read(evt.target.result, { type: 'binary' });
+        const sheetName = wb.SheetNames[0];
+        const ws = wb.Sheets[sheetName];
+        const rawData = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+        if (!rawData || rawData.length === 0) return;
+
+        const sample = rawData[0];
+        const cols = Object.keys(sample);
+        const findCol = (candidates) => {
+          const normMap = {};
+          cols.forEach(c => normMap[String(c).trim().toLowerCase()] = c);
+          for (const cand of candidates) {
+            if (normMap[cand.toLowerCase()]) return normMap[cand.toLowerCase()];
+          }
+          return null;
+        };
+
+        const accCol = findCol(['Account', 'ACCOUNT', 'account', 'Business Account', 'BusinessAccount', 'Merchant Name', 'Terminal Name']);
+        const remCol = findCol(['Remarks', 'REMARKS', 'remarks', 'Terminal Name', 'Merchant Name']);
+        const amountCol = findCol(['SALES', 'sales', 'Sales Price', 'order amount', 'paid by user', 'The settlement amount', 'original order total price', 'amount']);
+        const vmOnCol = findCol(['VM ONLINE', 'VM_ONLINE', 'vm_online', 'online', 'VM Online']);
+        const vmOffCol = findCol(['VM OFFLINE', 'VM_OFFLINE', 'vm_offline', 'offline', 'VM Offline']);
+        const tranCol = findCol(['JUMLAHTRAN', 'JUMLAH TRANSAKSI', 'jumlahTran', 'TRANSAKSI', 'transaksi']);
+        const statusCol = findCol(['Payment status', 'Order Status', 'status']);
+        const dateCol = findCol(['OrderTime', 'Payment time', 'Order Time', 'Order Date', 'Tanggal', 'tanggal', 'date', 'Date']);
+
+        // Extract transaction date dynamically from Excel rows if available
+        if (dateCol && rawData.length > 0 && rawData[0][dateCol]) {
+          const rawVal = String(rawData[0][dateCol]).trim();
+          if (rawVal) {
+            const dObj = new Date(rawVal);
+            if (!isNaN(dObj.getTime())) {
+              const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+              setSalesReportDate(`${dObj.getDate()}-${months[dObj.getMonth()]}-${dObj.getFullYear()}`);
+            } else {
+              setSalesReportDate(rawVal.split(' ')[0]);
+            }
+          }
+        }
+
+        const isRawOrderList = Boolean(findCol(['Order Time', 'Payment time', 'order number', 'Sales Price']));
+
+        if (isRawOrderList) {
+          const accMap = {};
+          rawData.forEach(row => {
+            if (statusCol && row[statusCol]) {
+              const st = String(row[statusCol]).trim().toLowerCase();
+              if (st && !['paymented', 'successful shipment', 'success', 'paid'].includes(st)) return;
+            }
+
+            const accName = String(row[accCol] || row['Terminal Name'] || row['Merchant Name'] || 'Account').trim();
+            const remName = String(row[remCol] || accName).trim();
+            const amt = parseFloat(String(row[amountCol] || 0).replace(/[^0-9.]/g, '')) || 0;
+
+            if (!accMap[accName]) {
+              accMap[accName] = { account: accName, remarks: remName, sales: 0, jumlahTran: 0, vmOnline: 1, vmOffline: 0 };
+            }
+            accMap[accName].sales += amt;
+            accMap[accName].jumlahTran += 1;
+          });
+
+          const dynamicRows = Object.values(accMap).map((r, i) => ({ id: i + 1, ...r }));
+          setSalesReportRows(dynamicRows);
+          addLog(`Berhasil memproses ${dynamicRows.length} akun penjualan dari file Excel.`);
+        } else {
+          const parsedRows = [];
+          rawData.forEach((row, idx) => {
+            const acc = String(row[accCol] || '').trim();
+            const rem = String(row[remCol] || acc).trim();
+
+            if (!acc || acc.toUpperCase() === 'TTL' || rem.toUpperCase().includes('TOTAL')) return;
+
+            const vmOn = parseInt(row[vmOnCol] || 0, 10) || 0;
+            const vmOff = parseInt(row[vmOffCol] || 0, 10) || 0;
+            const salesVal = parseFloat(String(row[amountCol] || 0).replace(/[^0-9.]/g, '')) || 0;
+            const tranVal = parseInt(row[tranCol] || 0, 10) || 0;
+
+            parsedRows.push({
+              id: idx + 1,
+              account: acc,
+              remarks: rem,
+              vmOnline: vmOn,
+              vmOffline: vmOff,
+              sales: salesVal,
+              jumlahTran: tranVal
+            });
+          });
+
+          setSalesReportRows(parsedRows);
+          addLog(`Berhasil mengunggah ${parsedRows.length} baris data penjualan dari Excel.`);
+        }
+      } catch (err) {
+        console.error('Error parsing sales Excel:', err);
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
   return (
     <div className={`min-h-[100dvh] pb-12 flex flex-col font-sans transition-colors duration-300 relative overflow-x-hidden ${darkMode ? 'bg-[#08090D] text-[#F1F5F9]' : 'bg-[#F5F7FA] text-[#23272E]'}`}>
       {/* Background Ambient Glow Effects */}
@@ -1071,9 +1388,6 @@ export default function App() {
             >
               <Coins size={16} weight={activeNavTab === 'excel' ? 'bold' : 'regular'} />
               <span>Harga Excel</span>
-              <span className="text-[9px] uppercase px-1.5 py-0.2 bg-[#16DBCC]/20 text-[#16DBCC] font-mono font-extrabold rounded-md border border-[#16DBCC]/30">
-                NEW
-              </span>
             </button>
           </nav>
 
@@ -1599,6 +1913,87 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Profit Margin Generator Control Panel */}
+              <div className={`p-4 rounded-2xl border flex flex-col lg:flex-row lg:items-center justify-between gap-4 ${darkMode ? 'bg-[#090A0F] border-slate-800' : 'bg-[#F8FAFC] border-slate-200'}`}>
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-2xl bg-gradient-to-tr from-[#396AFF] to-[#4D47C3] text-white shadow-md shadow-[#396AFF]/20">
+                    <Calculator size={20} weight="bold" />
+                  </div>
+                  <div>
+                    <h4 className={`text-xs font-extrabold ${darkMode ? 'text-white' : 'text-[#343C6A]'}`}>
+                      Generator Margin Profit (Harga Beli ➔ Harga Jual)
+                    </h4>
+                    <p className={`text-[11px] ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>
+                      Hitung otomatis harga jual berdasarkan % margin keuntungan dari modal/harga beli
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Scope Selector */}
+                  <select
+                    value={marginTargetScope}
+                    onChange={(e) => setMarginTargetScope(e.target.value)}
+                    className={`px-3 py-1.5 border rounded-xl text-xs font-bold outline-none ${darkMode ? 'bg-[#12151E] border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-[#343C6A]'}`}
+                  >
+                    <option value="selected">Produk Terpilih ({selectedIds.size})</option>
+                    <option value="all">Semua Produk ({filteredGoods.length})</option>
+                  </select>
+
+                  {/* Margin % Presets */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] font-bold text-[#718EBF]">MARGIN:</span>
+                    {[10, 20, 30, 40, 50, 100].map(pct => (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() => setGlobalMarginPct(pct)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all ${
+                          globalMarginPct === pct
+                            ? 'bg-[#396AFF] text-white shadow-sm'
+                            : darkMode ? 'bg-[#12151E] text-slate-300 border border-slate-800' : 'bg-white text-[#343C6A] border border-slate-200'
+                        }`}
+                      >
+                        {pct}%
+                      </button>
+                    ))}
+
+                    {/* Custom Margin Input */}
+                    <div className={`flex items-center gap-1 border rounded-lg px-2 py-1 text-xs font-mono font-bold ${darkMode ? 'bg-[#12151E] border-slate-800 text-white' : 'bg-white border-slate-200 text-[#343C6A]'}`}>
+                      <input
+                        type="number"
+                        value={globalMarginPct}
+                        onChange={(e) => setGlobalMarginPct(Number(e.target.value))}
+                        className="bg-transparent outline-none w-10 text-right font-bold"
+                      />
+                      <span>%</span>
+                    </div>
+                  </div>
+
+                  {/* Rounding Mode */}
+                  <select
+                    value={marginRoundingMode}
+                    onChange={(e) => setMarginRoundingMode(e.target.value)}
+                    className={`px-3 py-1.5 border rounded-xl text-xs font-bold outline-none ${darkMode ? 'bg-[#12151E] border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-[#343C6A]'}`}
+                  >
+                    <option value="1000">Bulatkan Rp 1.000</option>
+                    <option value="500">Bulatkan Rp 500</option>
+                    <option value="none">Tanpa Pembulatan</option>
+                  </select>
+
+                  {/* Apply Button */}
+                  <button
+                    type="button"
+                    onClick={handleApplyMarginToGoods}
+                    disabled={goods.length === 0}
+                    className="px-4 py-2 bg-[#396AFF] hover:bg-[#2855E0] text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-[#396AFF]/20 disabled:opacity-40 flex items-center gap-1.5"
+                  >
+                    <Percent size={14} weight="bold" />
+                    <span>Hitung Harga Jual</span>
+                  </button>
+                </div>
+              </div>
+
               {/* Sync Progress Indicator */}
               {isSyncing && (
                 <div className={`pt-4 border-t space-y-2 ${darkMode ? 'border-slate-800' : 'border-slate-100'}`}>
@@ -1827,11 +2222,16 @@ export default function App() {
                               </td>
                               <td className="py-3 px-4 text-right space-y-0.5 font-mono">
                                 <div className="text-[#4D47C3] font-extrabold text-xs">
-                                  Rp {(parseFloat(good.goodsPrice) || 0).toLocaleString('id-ID')}
+                                  Rp {(parseFloat(good.goodsPrice || good.salePrice || 0)).toLocaleString('id-ID')}
                                 </div>
-                                <div className={`text-[10px] font-medium ${darkMode ? 'text-slate-500' : 'text-[#718EBF]'}`}>
-                                  Cost: Rp {(parseFloat(good.costPrice) || 0).toLocaleString('id-ID')}
+                                <div className={`text-[10px] font-medium ${darkMode ? 'text-slate-400' : 'text-[#718EBF]'}`}>
+                                  Beli: Rp {(parseFloat(good.costPrice || good.fee || 0)).toLocaleString('id-ID')}
                                 </div>
+                                {parseFloat(good.costPrice || good.fee || 0) > 0 && parseFloat(good.goodsPrice || good.salePrice || 0) > 0 && (
+                                  <div className="text-[9px] font-bold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded-md inline-block border border-emerald-500/20">
+                                    +{((((parseFloat(good.goodsPrice || good.salePrice || 0)) - (parseFloat(good.costPrice || good.fee || 0))) / (parseFloat(good.costPrice || good.fee || 0))) * 100).toFixed(0)}% Margin (Rp {((parseFloat(good.goodsPrice || good.salePrice || 0)) - (parseFloat(good.costPrice || good.fee || 0))).toLocaleString('id-ID')})
+                                  </div>
+                                )}
                               </td>
                               {activeCatalogTab === 'source' && (
                                 <td className="py-3 px-4 text-center">
