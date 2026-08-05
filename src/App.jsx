@@ -258,6 +258,9 @@ export default function App() {
   const [excelKeyColumn, setExcelKeyColumn] = useState('');
   const [excelPriceColumn, setExcelPriceColumn] = useState('');
   const [excelCostColumn, setExcelCostColumn] = useState('');
+  const [excelKeyIndex, setExcelKeyIndex] = useState(-1);
+  const [excelPriceIndex, setExcelPriceIndex] = useState(-1);
+  const [excelCostIndex, setExcelCostIndex] = useState(-1);
   const [excelMatchingField, setExcelMatchingField] = useState('goodsCode');
   const [isReadingExcel, setIsReadingExcel] = useState(false);
   const [excelErrorMsg, setExcelErrorMsg] = useState('');
@@ -699,28 +702,48 @@ export default function App() {
       setExcelHeaders(headers);
       setExcelRows(dataRows);
 
-      const barcodeCol = headers.find(h => /barcode|sku|kode/i.test(h));
-      const nameCol = headers.find(h => /nama|produk|product|item/i.test(h));
-      if (barcodeCol) {
-        setExcelKeyColumn(barcodeCol);
+      const barcodeColIdx = headers.findIndex(h => /barcode|sku|kode/i.test(h));
+      const nameColIdx = headers.findIndex(h => /nama|produk|product|item/i.test(h));
+      if (barcodeColIdx !== -1) {
+        setExcelKeyColumn(headers[barcodeColIdx]);
+        setExcelKeyIndex(barcodeColIdx);
         setExcelMatchingField('goodsCode');
-      } else if (nameCol) {
-        setExcelKeyColumn(nameCol);
+      } else if (nameColIdx !== -1) {
+        setExcelKeyColumn(headers[nameColIdx]);
+        setExcelKeyIndex(nameColIdx);
         setExcelMatchingField('goodsName');
       } else if (headers.length > 0) {
         setExcelKeyColumn(headers[0]);
+        setExcelKeyIndex(0);
+      } else {
+        setExcelKeyColumn('');
+        setExcelKeyIndex(-1);
       }
 
-      const priceCol2026 = headers.find(h => /harga jual update 2026|harga 2026|c8888/i.test(h));
-      const priceColGeneral = headers.find(h => /harga jual|harga|jual|price/i.test(h));
-      if (priceCol2026) setExcelPriceColumn(priceCol2026);
-      else if (priceColGeneral) setExcelPriceColumn(priceColGeneral);
-      else if (headers.length > 1) setExcelPriceColumn(headers[1]);
-      else setExcelPriceColumn('');
+      const priceCol2026Idx = headers.findIndex(h => /harga jual update 2026|harga 2026|c8888/i.test(h));
+      const priceColGeneralIdx = headers.findIndex(h => /harga jual|harga|jual|price/i.test(h));
+      if (priceCol2026Idx !== -1) {
+        setExcelPriceColumn(headers[priceCol2026Idx]);
+        setExcelPriceIndex(priceCol2026Idx);
+      } else if (priceColGeneralIdx !== -1) {
+        setExcelPriceColumn(headers[priceColGeneralIdx]);
+        setExcelPriceIndex(priceColGeneralIdx);
+      } else if (headers.length > 1) {
+        setExcelPriceColumn(headers[1]);
+        setExcelPriceIndex(1);
+      } else {
+        setExcelPriceColumn('');
+        setExcelPriceIndex(-1);
+      }
 
-      const costCol2026 = headers.find(h => /hpp 2026|hpp\+ppn 2026|hpp|modal|cost/i.test(h));
-      if (costCol2026) setExcelCostColumn(costCol2026);
-      else setExcelCostColumn('');
+      const costCol2026Idx = headers.findIndex(h => /hpp 2026|hpp\+ppn 2026|hpp|modal|cost/i.test(h));
+      if (costCol2026Idx !== -1) {
+        setExcelCostColumn(headers[costCol2026Idx]);
+        setExcelCostIndex(costCol2026Idx);
+      } else {
+        setExcelCostColumn('');
+        setExcelCostIndex(-1);
+      }
     } catch (err) {
       console.error('Error parsing sheet:', err);
       setExcelErrorMsg('Gagal membaca sheet Excel: ' + err.message);
@@ -819,9 +842,9 @@ export default function App() {
       return { matched: [], unmatchedCount: 0, totalRows: 0, matchingCount: 0, differingCount: 0, exactCount: 0, similarCount: 0 };
     }
     const activeCatalog = activeCatalogTab === 'source' ? goods : targetGoods;
-    const keyIndex = excelHeaders.indexOf(excelKeyColumn);
-    const saleIndex = excelPriceColumn ? excelHeaders.indexOf(excelPriceColumn) : -1;
-    const costIndex = excelCostColumn ? excelHeaders.indexOf(excelCostColumn) : -1;
+    const keyIndex = excelKeyIndex !== undefined && excelKeyIndex >= 0 ? excelKeyIndex : excelHeaders.indexOf(excelKeyColumn);
+    const saleIndex = excelPriceIndex !== undefined && excelPriceIndex >= 0 ? excelPriceIndex : (excelPriceColumn ? excelHeaders.indexOf(excelPriceColumn) : -1);
+    const costIndex = excelCostIndex !== undefined && excelCostIndex >= 0 ? excelCostIndex : (excelCostColumn ? excelHeaders.indexOf(excelCostColumn) : -1);
     if (keyIndex === -1) return { matched: [], unmatchedCount: 0, totalRows: 0, matchingCount: 0, differingCount: 0, exactCount: 0, similarCount: 0 };
 
     const catalogMap = new Map();
@@ -943,6 +966,9 @@ export default function App() {
     excelKeyColumn,
     excelPriceColumn,
     excelCostColumn,
+    excelKeyIndex,
+    excelPriceIndex,
+    excelCostIndex,
     excelRows,
     excelMatchingField,
     activeCatalogTab,
@@ -2642,12 +2668,18 @@ export default function App() {
                         <div className="bg-white/10 p-3 rounded-xl border border-white/20 flex flex-col gap-1">
                           <span className="text-[10px] text-indigo-100 font-semibold">1. Kolom Key Excel:</span>
                           <select
-                            value={excelKeyColumn}
-                            onChange={(e) => setExcelKeyColumn(e.target.value)}
+                            value={excelKeyIndex !== -1 ? excelKeyIndex : excelHeaders.indexOf(excelKeyColumn)}
+                            onChange={(e) => {
+                              const idx = Number(e.target.value);
+                              setExcelKeyIndex(idx);
+                              setExcelKeyColumn(excelHeaders[idx] || '');
+                            }}
                             className="bg-transparent text-white font-bold focus:outline-none text-xs"
                           >
                             {excelHeaders.map((h, idx) => (
-                              <option key={`${h}_${idx}`} value={h} className="text-[#343C6A]">{h}</option>
+                              <option key={`key_opt_${idx}`} value={idx} className="text-[#343C6A]">
+                                Kolom {idx + 1}: {h}
+                              </option>
                             ))}
                           </select>
                         </div>
@@ -2667,13 +2699,19 @@ export default function App() {
                         <div className="bg-white/10 p-3 rounded-xl border border-white/20 flex flex-col gap-1">
                           <span className="text-[10px] text-indigo-100 font-semibold">3. Kolom Harga Jual:</span>
                           <select
-                            value={excelPriceColumn}
-                            onChange={(e) => setExcelPriceColumn(e.target.value)}
+                            value={excelPriceIndex !== -1 ? excelPriceIndex : (excelPriceColumn ? excelHeaders.indexOf(excelPriceColumn) : -1)}
+                            onChange={(e) => {
+                              const idx = Number(e.target.value);
+                              setExcelPriceIndex(idx);
+                              setExcelPriceColumn(idx !== -1 ? excelHeaders[idx] : '');
+                            }}
                             className="bg-transparent text-white font-bold focus:outline-none text-xs"
                           >
-                            <option value="" className="text-[#343C6A]">-- Abaikan --</option>
+                            <option value={-1} className="text-[#343C6A]">-- Abaikan --</option>
                             {excelHeaders.map((h, idx) => (
-                              <option key={`${h}_${idx}`} value={h} className="text-[#343C6A]">{h}</option>
+                              <option key={`price_opt_${idx}`} value={idx} className="text-[#343C6A]">
+                                Kolom {idx + 1}: {h}
+                              </option>
                             ))}
                           </select>
                         </div>
@@ -2681,13 +2719,19 @@ export default function App() {
                         <div className="bg-white/10 p-3 rounded-xl border border-white/20 flex flex-col gap-1">
                           <span className="text-[10px] text-indigo-100 font-semibold">4. Kolom Modal (HPP):</span>
                           <select
-                            value={excelCostColumn}
-                            onChange={(e) => setExcelCostColumn(e.target.value)}
+                            value={excelCostIndex !== -1 ? excelCostIndex : (excelCostColumn ? excelHeaders.indexOf(excelCostColumn) : -1)}
+                            onChange={(e) => {
+                              const idx = Number(e.target.value);
+                              setExcelCostIndex(idx);
+                              setExcelCostColumn(idx !== -1 ? excelHeaders[idx] : '');
+                            }}
                             className="bg-transparent text-white font-bold focus:outline-none text-xs"
                           >
-                            <option value="" className="text-[#343C6A]">-- Abaikan --</option>
+                            <option value={-1} className="text-[#343C6A]">-- Abaikan --</option>
                             {excelHeaders.map((h, idx) => (
-                              <option key={`${h}_${idx}`} value={h} className="text-[#343C6A]">{h}</option>
+                              <option key={`cost_opt_${idx}`} value={idx} className="text-[#343C6A]">
+                                Kolom {idx + 1}: {h}
+                              </option>
                             ))}
                           </select>
                         </div>
@@ -2755,17 +2799,23 @@ export default function App() {
                             <span className="px-2.5 py-1 rounded-lg bg-indigo-500/30 text-indigo-200 border border-indigo-400/40 flex items-center gap-1.5 shadow-sm">
                               <Key size={12} weight="bold" className="text-indigo-300" />
                               <span>Key / Barcode:</span>
-                              <strong className="text-white font-mono">{excelKeyColumn || '(Belum dipilih)'}</strong>
+                              <strong className="text-white font-mono">
+                                {excelKeyIndex !== -1 ? `Kolom ${excelKeyIndex + 1} (${excelHeaders[excelKeyIndex]})` : (excelKeyColumn || '(Belum dipilih)')}
+                              </strong>
                             </span>
                             <span className="px-2.5 py-1 rounded-lg bg-purple-500/30 text-purple-200 border border-purple-400/40 flex items-center gap-1.5 shadow-sm">
                               <Tag size={12} weight="bold" className="text-purple-300" />
                               <span>Harga Jual:</span>
-                              <strong className="text-white font-mono">{excelPriceColumn || '(Abaikan)'}</strong>
+                              <strong className="text-white font-mono">
+                                {excelPriceIndex !== -1 ? `Kolom ${excelPriceIndex + 1} (${excelHeaders[excelPriceIndex]})` : (excelPriceColumn || '(Abaikan)')}
+                              </strong>
                             </span>
                             <span className="px-2.5 py-1 rounded-lg bg-amber-500/30 text-amber-200 border border-amber-400/40 flex items-center gap-1.5 shadow-sm">
                               <Coins size={12} weight="bold" className="text-amber-300" />
                               <span>Modal / HPP:</span>
-                              <strong className="text-white font-mono">{excelCostColumn || '(Abaikan)'}</strong>
+                              <strong className="text-white font-mono">
+                                {excelCostIndex !== -1 ? `Kolom ${excelCostIndex + 1} (${excelHeaders[excelCostIndex]})` : (excelCostColumn || '(Abaikan)')}
+                              </strong>
                             </span>
                           </div>
 
@@ -2776,9 +2826,9 @@ export default function App() {
                                 <tr>
                                   <th className="p-3 text-center w-10 border-r border-slate-200/50 dark:border-slate-800">#</th>
                                   {excelHeaders.map((header, hIdx) => {
-                                    const isKey = excelKeyColumn === header;
-                                    const isPrice = excelPriceColumn === header;
-                                    const isCost = excelCostColumn === header;
+                                    const isKey = excelKeyIndex === hIdx || (excelKeyIndex === -1 && excelKeyColumn === header);
+                                    const isPrice = excelPriceIndex === hIdx || (excelPriceIndex === -1 && excelPriceColumn === header);
+                                    const isCost = excelCostIndex === hIdx || (excelCostIndex === -1 && excelCostColumn === header);
 
                                     let colHeaderStyle = darkMode ? 'hover:bg-slate-800/60 text-slate-300' : 'hover:bg-slate-100 text-[#343C6A]';
                                     if (isKey) colHeaderStyle = darkMode ? 'bg-indigo-500/20 text-indigo-300 border-b-2 border-indigo-500 font-extrabold' : 'bg-[#E8EFFC] text-[#396AFF] border-b-2 border-[#396AFF] font-extrabold';
@@ -2791,14 +2841,20 @@ export default function App() {
                                         className={`p-3 min-w-[150px] transition-all border-r border-slate-200/50 dark:border-slate-800 select-none cursor-pointer group ${colHeaderStyle}`}
                                         onClick={() => {
                                           if (!isKey && !isPrice && !isCost) {
+                                            setExcelPriceIndex(hIdx);
                                             setExcelPriceColumn(header);
                                           } else if (isPrice) {
+                                            setExcelCostIndex(hIdx);
                                             setExcelCostColumn(header);
+                                            setExcelPriceIndex(-1);
                                             setExcelPriceColumn('');
                                           } else if (isCost) {
+                                            setExcelKeyIndex(hIdx);
                                             setExcelKeyColumn(header);
+                                            setExcelCostIndex(-1);
                                             setExcelCostColumn('');
                                           } else if (isKey) {
+                                            setExcelKeyIndex(-1);
                                             setExcelKeyColumn('');
                                           }
                                         }}
@@ -2806,7 +2862,10 @@ export default function App() {
                                       >
                                         <div className="space-y-1.5">
                                           <div className="flex items-center justify-between gap-1 font-sans">
-                                            <span className="truncate max-w-[135px] font-extrabold text-xs">{header}</span>
+                                            <span className="truncate max-w-[135px] font-extrabold text-xs">
+                                              <span className="text-[10px] font-mono opacity-60 mr-1">[{hIdx + 1}]</span>
+                                              {header}
+                                            </span>
                                             {isKey && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#396AFF] text-white flex items-center gap-1"><Key size={10} weight="bold" /> KEY</span>}
                                             {isPrice && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#9333EA] text-white flex items-center gap-1"><Tag size={10} weight="bold" /> HARGA</span>}
                                             {isCost && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#D98200] text-white flex items-center gap-1"><Coins size={10} weight="bold" /> HPP</span>}
@@ -2817,7 +2876,10 @@ export default function App() {
                                             <button
                                               type="button"
                                               title="Set sebagai Key Barcode/Nama"
-                                              onClick={() => setExcelKeyColumn(header)}
+                                              onClick={() => {
+                                                setExcelKeyIndex(hIdx);
+                                                setExcelKeyColumn(header);
+                                              }}
                                               className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all flex items-center gap-1 ${
                                                 isKey 
                                                   ? 'bg-[#396AFF] text-white shadow-sm' 
@@ -2829,7 +2891,17 @@ export default function App() {
                                             <button
                                               type="button"
                                               title="Set sebagai Harga Jual"
-                                              onClick={() => setExcelPriceColumn(header === excelPriceColumn ? '' : header)}
+                                              onClick={() => {
+                                                if (isPrice) {
+                                                  setExcelPriceIndex(-1);
+                                                  setExcelPriceColumn('');
+                                                } else {
+                                                  setExcelPriceIndex(hIdx);
+                                                  setExcelPriceColumn(header);
+                                                  if (excelCostIndex === hIdx) { setExcelCostIndex(-1); setExcelCostColumn(''); }
+                                                  if (excelKeyIndex === hIdx) { setExcelKeyIndex(-1); setExcelKeyColumn(''); }
+                                                }
+                                              }}
                                               className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all flex items-center gap-1 ${
                                                 isPrice 
                                                   ? 'bg-[#9333EA] text-white shadow-sm' 
@@ -2841,7 +2913,17 @@ export default function App() {
                                             <button
                                               type="button"
                                               title="Set sebagai Modal / HPP"
-                                              onClick={() => setExcelCostColumn(header === excelCostColumn ? '' : header)}
+                                              onClick={() => {
+                                                if (isCost) {
+                                                  setExcelCostIndex(-1);
+                                                  setExcelCostColumn('');
+                                                } else {
+                                                  setExcelCostIndex(hIdx);
+                                                  setExcelCostColumn(header);
+                                                  if (excelPriceIndex === hIdx) { setExcelPriceIndex(-1); setExcelPriceColumn(''); }
+                                                  if (excelKeyIndex === hIdx) { setExcelKeyIndex(-1); setExcelKeyColumn(''); }
+                                                }
+                                              }}
                                               className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all flex items-center gap-1 ${
                                                 isCost 
                                                   ? 'bg-[#D98200] text-white shadow-sm' 
@@ -2865,9 +2947,9 @@ export default function App() {
                                       const val = row[hIdx];
                                       const cellStr = val !== undefined && val !== null ? String(val) : '';
 
-                                      const isKey = excelKeyColumn === header;
-                                      const isPrice = excelPriceColumn === header;
-                                      const isCost = excelCostColumn === header;
+                                      const isKey = excelKeyIndex === hIdx || (excelKeyIndex === -1 && excelKeyColumn === header);
+                                      const isPrice = excelPriceIndex === hIdx || (excelPriceIndex === -1 && excelPriceColumn === header);
+                                      const isCost = excelCostIndex === hIdx || (excelCostIndex === -1 && excelCostColumn === header);
 
                                       let cellStyle = darkMode ? 'text-slate-300' : 'text-[#343C6A]';
                                       if (isKey) cellStyle = darkMode ? 'bg-indigo-500/10 text-indigo-300 font-bold border-x border-indigo-500/20' : 'bg-[#E8EFFC]/60 text-[#396AFF] font-bold';
