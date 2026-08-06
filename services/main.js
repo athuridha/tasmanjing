@@ -188,7 +188,7 @@ async function createCategory(token, typeName) {
 // Helper: Check if product exists in target account by barcode or name (robust check to avoid duplicates)
 async function findProductInTarget(token, barcode, name) {
   const cleanName = name ? common.normalizeName(name) : '';
-  const cleanBarcode = barcode ? barcode.trim() : '';
+  const cleanBarcode = barcode ? String(barcode).trim() : '';
 
   const qauth = getQAuthorization();
   const headers = {
@@ -198,33 +198,15 @@ async function findProductInTarget(token, barcode, name) {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
   };
 
-  // 1. Try to search by name first
-  if (name && name.trim()) {
-    const urlByName = `${BASE_URL}/commcustomgoods/querycommcustomgoodslist?goodsTypeStr=2&pageSize=100&pageNo=1&cateUuid=&likeCode=${encodeURIComponent(name.trim())}&accout=&goodsStat=&feeStart=&feeEnd=`;
-    try {
-      const response = await axios.get(urlByName, { headers });
-      if (response.data && response.data.result === 'true') {
-        const list = extractGoodsList(response.data.data);
-        const matched = list.find(g => 
-          (g.goodsName && common.normalizeName(g.goodsName) === cleanName) ||
-          (cleanBarcode && g.goodsCode && g.goodsCode.trim() === cleanBarcode)
-        );
-        if (matched) return matched;
-      }
-    } catch (err) {
-      console.error('Error querying target goods by name:', err.message);
-    }
-  }
-
-  // 2. If not found by name, and barcode exists, search by barcode specifically
+  // 1. Search by barcode first (most reliable unique key)
   if (cleanBarcode) {
-    const urlByBarcode = `${BASE_URL}/commcustomgoods/querycommcustomgoodslist?goodsTypeStr=2&pageSize=100&pageNo=1&cateUuid=&likeCode=${encodeURIComponent(cleanBarcode)}&accout=&goodsStat=&feeStart=&feeEnd=`;
+    const urlByBarcode = `${BASE_URL}/commcustomgoods/querycommcustomgoodslist?goodsTypeStr=2&pageSize=200&pageNo=1&cateUuid=&likeCode=${encodeURIComponent(cleanBarcode)}&accout=&goodsStat=&feeStart=&feeEnd=`;
     try {
       const response = await axios.get(urlByBarcode, { headers });
       if (response.data && response.data.result === 'true') {
         const list = extractGoodsList(response.data.data);
         const matched = list.find(g => 
-          (g.goodsCode && g.goodsCode.trim() === cleanBarcode) ||
+          (g.goodsCode && String(g.goodsCode).trim() === cleanBarcode) ||
           (g.goodsName && common.normalizeName(g.goodsName) === cleanName)
         );
         if (matched) return matched;
@@ -234,7 +216,54 @@ async function findProductInTarget(token, barcode, name) {
     }
   }
 
+  // 2. Search by full name
+  if (name && name.trim()) {
+    const urlByName = `${BASE_URL}/commcustomgoods/querycommcustomgoodslist?goodsTypeStr=2&pageSize=200&pageNo=1&cateUuid=&likeCode=${encodeURIComponent(name.trim())}&accout=&goodsStat=&feeStart=&feeEnd=`;
+    try {
+      const response = await axios.get(urlByName, { headers });
+      if (response.data && response.data.result === 'true') {
+        const list = extractGoodsList(response.data.data);
+        const matched = list.find(g => 
+          (g.goodsName && common.normalizeName(g.goodsName) === cleanName) ||
+          (cleanBarcode && g.goodsCode && String(g.goodsCode).trim() === cleanBarcode)
+        );
+        if (matched) return matched;
+      }
+    } catch (err) {
+      console.error('Error querying target goods by name:', err.message);
+    }
+
+    // 3. Search by first word of product name as fallback
+    const firstWord = name.trim().split(/\s+/)[0];
+    if (firstWord && firstWord.length >= 2 && firstWord !== name.trim()) {
+      const urlByFirstWord = `${BASE_URL}/commcustomgoods/querycommcustomgoodslist?goodsTypeStr=2&pageSize=200&pageNo=1&cateUuid=${encodeURIComponent(firstWord)}&accout=&goodsStat=&feeStart=&feeEnd=`;
+      try {
+        const response = await axios.get(urlByFirstWord, { headers });
+        if (response.data && response.data.result === 'true') {
+          const list = extractGoodsList(response.data.data);
+          const matched = list.find(g => 
+            (g.goodsName && common.normalizeName(g.goodsName) === cleanName) ||
+            (cleanBarcode && g.goodsCode && String(g.goodsCode).trim() === cleanBarcode)
+          );
+          if (matched) return matched;
+        }
+      } catch (err) {
+        console.error('Error querying target goods by first word:', err.message);
+      }
+    }
+  }
+
   return null;
+}
+
+// Helper to update product with POST / PUT fallback
+async function sendUpdateCommCustomGoods(url, payload, headers) {
+  try {
+    return await axios.post(url, payload, { headers });
+  } catch (err) {
+    console.warn(`[VM Putih] POST to ${url} failed (${err.message}). Retrying with PUT...`);
+    return await axios.put(url, payload, { headers });
+  }
 }
 
 // 3. Sync single item endpoint
@@ -289,7 +318,7 @@ async function syncItem(targetToken, good, mode) {
           introduceUrl: sourceUrl
         };
 
-        const response = await axios.put(url, payload, { headers });
+        const response = await sendUpdateCommCustomGoods(url, payload, headers);
         if (response.data && response.data.result === 'true') {
           return {
             success: true,
@@ -335,7 +364,7 @@ async function syncItem(targetToken, good, mode) {
         membersPrice: good.membersPrice || 0
       };
 
-      const response = await axios.put(url, payload, { headers });
+      const response = await sendUpdateCommCustomGoods(url, payload, headers);
 
       if (response.data && response.data.result === 'true') {
         console.log(`Successfully updated prices for "${good.goodsName}"`);
