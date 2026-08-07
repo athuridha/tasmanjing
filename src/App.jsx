@@ -976,6 +976,7 @@ export default function App() {
     targetGoods,
     enableFuzzyMatch,
     excelFuzzyThreshold,
+    excelUpdateTarget,
   ]);
 
   const filteredExcelMatches = useMemo(() => {

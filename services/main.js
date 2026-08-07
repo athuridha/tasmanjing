@@ -1,5 +1,6 @@
 const axios = require('axios');
 const crypto = require('crypto');
+const common = require('./common');
 
 const BASE_URL = 'https://www.hnzczy.cn/ms1';
 
@@ -236,7 +237,7 @@ async function findProductInTarget(token, barcode, name) {
     // 3. Search by first word of product name as fallback
     const firstWord = name.trim().split(/\s+/)[0];
     if (firstWord && firstWord.length >= 2 && firstWord !== name.trim()) {
-      const urlByFirstWord = `${BASE_URL}/commcustomgoods/querycommcustomgoodslist?goodsTypeStr=2&pageSize=200&pageNo=1&cateUuid=${encodeURIComponent(firstWord)}&accout=&goodsStat=&feeStart=&feeEnd=`;
+      const urlByFirstWord = `${BASE_URL}/commcustomgoods/querycommcustomgoodslist?goodsTypeStr=2&pageSize=200&pageNo=1&cateUuid=&likeCode=${encodeURIComponent(firstWord)}&accout=&goodsStat=&feeStart=&feeEnd=`;
       try {
         const response = await axios.get(urlByFirstWord, { headers });
         if (response.data && response.data.result === 'true') {
@@ -330,11 +331,11 @@ async function syncItem(targetToken, good, mode) {
         }
       }
 
-      // Check if price matches
+      // Check if price matches (use parseFloat to avoid string vs number type mismatch)
       const isPriceMatch = 
-        existingProduct.goodsPrice === good.goodsPrice &&
-        existingProduct.costPrice === good.costPrice &&
-        existingProduct.membersPrice === good.membersPrice;
+        parseFloat(existingProduct.goodsPrice) === parseFloat(good.goodsPrice) &&
+        parseFloat(existingProduct.costPrice) === parseFloat(good.costPrice) &&
+        parseFloat(existingProduct.membersPrice || 0) === parseFloat(good.membersPrice || 0);
 
       if (isPriceMatch) {
         console.log(`Prices already match for "${good.goodsName}" (${good.goodsPrice} / ${good.costPrice}).`);
@@ -357,13 +358,18 @@ async function syncItem(targetToken, good, mode) {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       };
 
+      const newGoodsPrice = parseFloat(good.goodsPrice) || 0;
+      const newCostPrice = parseFloat(good.costPrice) || 0;
+      const newMembersPrice = parseFloat(good.membersPrice) || 0;
+
       const payload = {
         ...existingProduct,
-        goodsPrice: good.goodsPrice,
-        costPrice: good.costPrice,
-        membersPrice: good.membersPrice || 0
+        goodsPrice: newGoodsPrice,
+        costPrice: newCostPrice,
+        membersPrice: newMembersPrice
       };
 
+      console.log(`[VM Putih] Update payload for "${good.goodsName}": goodsPrice=${newGoodsPrice}, costPrice=${newCostPrice}, membersPrice=${newMembersPrice}, uuid=${existingProduct.uuid}`);
       const response = await sendUpdateCommCustomGoods(url, payload, headers);
 
       if (response.data && response.data.result === 'true') {
@@ -371,9 +377,10 @@ async function syncItem(targetToken, good, mode) {
         return {
           success: true,
           status: 'synced',
-          message: `Updated price to ${good.goodsPrice}`
+          message: `Updated price to ${newGoodsPrice}`
         };
       } else {
+        console.error(`[VM Putih] Update failed for "${good.goodsName}": resultDesc=${response.data?.resultDesc}, statusCode=${response.data?.statusCode}, full response:`, JSON.stringify(response.data).substring(0, 500));
         throw new Error(response.data ? response.data.resultDesc : 'Failed to update product prices');
       }
     }
